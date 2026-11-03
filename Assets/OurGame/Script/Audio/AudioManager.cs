@@ -22,7 +22,11 @@ public class AudioManager : MonoBehaviour
 	public CarController car;
 	[Range(0f, 1f)] public float masterVolume = 1f;
 
-	[Tooltip("ช่อง 0 = เกียร์ 1 ... ช่อง 5 = เกียร์ 6")]
+    [Header("Music & SFX")]
+    [SerializeField] private AudioSource bgmSource;
+    [SerializeField] private AudioSource sfxSource;
+
+    [Tooltip("ช่อง 0 = เกียร์ 1 ... ช่อง 5 = เกียร์ 6")]
 	public GearSound[] gearSounds = new GearSound[6];
 
 	[Header("Pitch behaviour")]
@@ -77,9 +81,61 @@ public class AudioManager : MonoBehaviour
 	bool layerAllowed;
 	bool warming;
 
-	void Awake()
+
+    // ==============================
+    // CENTRAL AUDIO SYSTEM
+    // ==============================
+
+    public void PlayBGM(AudioClip clip)
+    {
+        if (clip == null || bgmSource == null)
+            return;
+
+        // ป้องกันเพลงเดิมเริ่มใหม่
+        if (bgmSource.clip == clip && bgmSource.isPlaying)
+            return;
+
+        bgmSource.clip = clip;
+        bgmSource.loop = true;
+        bgmSource.Play();
+    }
+
+    public void PlaySFX(AudioClip clip)
+    {
+        if (clip == null || sfxSource == null)
+            return;
+
+        sfxSource.PlayOneShot(clip);
+    }
+
+    public void SetMasterVolume(float volume)
+    {
+        masterVolume = Mathf.Clamp01(volume);
+
+        if (bgmSource != null)
+            bgmSource.volume = masterVolume;
+
+        if (sfxSource != null)
+            sfxSource.volume = masterVolume;
+
+        Debug.Log("Master Volume: " +
+            (masterVolume * 100f).ToString("F0") + "%");
+    }
+
+
+    void Awake()
 	{
-		int n = gearSounds != null ? gearSounds.Length : 0;
+        masterVolume = PlayerPrefs.GetFloat(
+    "MasterVolume", masterVolume
+);
+
+        if (bgmSource != null)
+            bgmSource.volume = masterVolume;
+
+        if (sfxSource != null)
+            sfxSource.volume = masterVolume;
+
+        int n = gearSounds != null ? gearSounds.Length : 0;
 		engine = new AudioSource[n];
 		layer = new AudioSource[n];
 		for (int i = 0; i < n; i++)
