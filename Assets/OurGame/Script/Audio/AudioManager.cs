@@ -1,9 +1,11 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class AudioManager : MonoBehaviour
 {
-	[System.Serializable]
+    public static AudioManager Instance { get; private set; }
+    [System.Serializable]
 	public class GearSound
 	{
 		[Header("Engine (เสียงรถปกติ)")]
@@ -91,13 +93,15 @@ public class AudioManager : MonoBehaviour
         if (clip == null || bgmSource == null)
             return;
 
-        // ป้องกันเพลงเดิมเริ่มใหม่
+        // ถ้าเพลงเดิมกำลังเล่นอยู่ ไม่เริ่มใหม่
         if (bgmSource.clip == clip && bgmSource.isPlaying)
             return;
 
         bgmSource.clip = clip;
         bgmSource.loop = true;
         bgmSource.Play();
+
+        Debug.Log("BGM Started: " + clip.name);
     }
 
     public void PlaySFX(AudioClip clip)
@@ -124,34 +128,51 @@ public class AudioManager : MonoBehaviour
 
 
     void Awake()
-	{
-        masterVolume = PlayerPrefs.GetFloat(
-    "MasterVolume", masterVolume
-);
+    {
+        // Singleton
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
 
-        if (bgmSource != null)
-            bgmSource.volume = masterVolume;
+        Instance = this;
 
-        if (sfxSource != null)
-            sfxSource.volume = masterVolume;
+        // รักษา AudioManager ข้าม Scene
+        DontDestroyOnLoad(gameObject);
+
+        // ===== โค้ดเดิมของเพื่อน เริ่มตรงนี้ =====
 
         int n = gearSounds != null ? gearSounds.Length : 0;
-		engine = new AudioSource[n];
-		layer = new AudioSource[n];
-		for (int i = 0; i < n; i++)
-		{
-			if (gearSounds[i] == null) continue;
-			engine[i] = MakeSource("Engine G" + (i + 1), gearSounds[i].engineClip, true);
-			layer[i] = MakeSource("Layer G" + (i + 1), gearSounds[i].layerClip, true);
-		}
-		brake = MakeSource("Brake", brakeClip, false);
-	}
 
-	void Start()
+        engine = new AudioSource[n];
+        layer = new AudioSource[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            if (gearSounds[i] == null) continue;
+
+            engine[i] = MakeSource(
+                "Engine G" + (i + 1),
+                gearSounds[i].engineClip,
+                true
+            );
+
+            layer[i] = MakeSource(
+                "Layer G" + (i + 1),
+                gearSounds[i].layerClip,
+                true
+            );
+        }
+
+        brake = MakeSource("Brake", brakeClip, false);
+    }
+
+    void Start()
 	{
-		StartCoroutine(WarmUp());
-		if (car == null)
-		{
+        StartCoroutine(WarmUp());
+        BindCar();
+        {
 			var go = GameObject.FindGameObjectWithTag("Player");
 			if (go != null) car = go.GetComponent<CarController>();
 		}
@@ -162,14 +183,21 @@ public class AudioManager : MonoBehaviour
 		}
 	}
 
-	void OnDestroy()
-	{
-		if (car == null) return;
-		car.BrakeStarted -= OnBrakeStarted;
-		car.GearChanged -= OnGearChanged;
-	}
+    void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
 
-	AudioSource MakeSource(string name, AudioClip clip, bool loop)
+        if (car != null)
+        {
+            car.BrakeStarted -= OnBrakeStarted;
+            car.GearChanged -= OnGearChanged;
+        }
+
+        if (Instance == this)
+            Instance = null;
+    }
+
+    AudioSource MakeSource(string name, AudioClip clip, bool loop)
 	{
 		if (clip == null) return null;
 		clip.LoadAudioData();
@@ -339,4 +367,32 @@ public class AudioManager : MonoBehaviour
 		if (brake != null) brake.Stop();
 		warming = false;
 	}
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        BindCar();
+    }
+
+    private void BindCar()
+    {
+        if (car != null)
+        {
+            car.BrakeStarted -= OnBrakeStarted;
+            car.GearChanged -= OnGearChanged;
+        }
+
+        GameObject go = GameObject.FindGameObjectWithTag("Player");
+
+        car = go != null ? go.GetComponent<CarController>() : null;
+
+        if (car != null)
+        {
+            car.BrakeStarted += OnBrakeStarted;
+            car.GearChanged += OnGearChanged;
+        }
+    }
 }
