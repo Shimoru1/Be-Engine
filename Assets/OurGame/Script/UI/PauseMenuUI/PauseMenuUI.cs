@@ -1,5 +1,4 @@
-﻿
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
@@ -17,65 +16,75 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     private const string VOLUME_KEY = "MasterVolume";
-
-    private bool isPaused = false;
+    private bool isPaused;
 
     private void Start()
     {
-        // ค้นหา AudioManager หากยังไม่ได้กำหนดใน Inspector
+        // ใช้ AudioManager ตัวกลางที่อยู่ข้าม Scene ก่อน
+        audioManager = AudioManager.Instance;
+
+        // เผื่อกรณีไม่มี Singleton ให้ลองค้นหาใน Scene
         if (audioManager == null)
-        {
             audioManager = FindFirstObjectByType<AudioManager>();
-        }
 
-        // ซ่อน Pause Menu และ Settings ตอนเริ่มเกม
-        pauseMenuPanel.SetActive(false);
-        settingsPanel.SetActive(false);
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(false);
 
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        isPaused = false;
         Time.timeScale = 1f;
 
-        // โหลดระดับเสียงที่บันทึกไว้
+        // โหลดค่าระดับเสียงที่บันทึกไว้
         float savedVolume = PlayerPrefs.GetFloat(VOLUME_KEY, 1f);
+        savedVolume = Mathf.Clamp01(savedVolume);
 
         if (masterVolumeSlider != null)
         {
+            masterVolumeSlider.minValue = 0f;
+            masterVolumeSlider.maxValue = 1f;
+            masterVolumeSlider.wholeNumbers = false;
             masterVolumeSlider.SetValueWithoutNotify(savedVolume);
 
-            masterVolumeSlider.onValueChanged.AddListener(
-                ChangeMasterVolume
-            );
-        }
-
-        if (audioManager != null)
-        {
-            audioManager.SetMasterVolume(savedVolume);
+            // ป้องกันการเพิ่ม Listener ซ้ำ
+            masterVolumeSlider.onValueChanged.RemoveListener(ChangeMasterVolume);
+            masterVolumeSlider.onValueChanged.AddListener(ChangeMasterVolume);
+            masterVolumeSlider.interactable = true;
         }
         else
         {
-            Debug.LogWarning("PauseMenuUI: AudioManager not found!");
+            Debug.LogError("PauseMenuUI: ยังไม่ได้กำหนด Master Volume Slider ใน Inspector!");
         }
+
+        ApplyMasterVolume(savedVolume);
+
+        if (audioManager == null)
+            Debug.LogError("PauseMenuUI: ไม่พบ AudioManager ใน Scene หรือ AudioManager.Instance!");
+    }
+
+    private void OnDestroy()
+    {
+        if (masterVolumeSlider != null)
+            masterVolumeSlider.onValueChanged.RemoveListener(ChangeMasterVolume);
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (!Input.GetKeyDown(KeyCode.Escape))
+            return;
+
+        if (!isPaused)
         {
-            if (isPaused)
-            {
-                // ถ้าอยู่หน้า Settings ให้กลับหน้า Pause
-                if (settingsPanel.activeSelf)
-                {
-                    CloseSettings();
-                }
-                else
-                {
-                    ResumeGame();
-                }
-            }
-            else
-            {
-                PauseGame();
-            }
+            PauseGame();
+        }
+        else if (settingsPanel != null && settingsPanel.activeSelf)
+        {
+            CloseSettings();
+        }
+        else
+        {
+            ResumeGame();
         }
     }
 
@@ -88,18 +97,23 @@ public class PauseMenuUI : MonoBehaviour
         isPaused = true;
         Time.timeScale = 0f;
 
-        pauseMenuPanel.SetActive(true);
-        settingsPanel.SetActive(false);
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(true);
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
     }
 
-    // ปุ่ม Continue
     public void ResumeGame()
     {
         isPaused = false;
         Time.timeScale = 1f;
 
-        pauseMenuPanel.SetActive(false);
-        settingsPanel.SetActive(false);
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(false);
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
     }
 
     // =========================
@@ -108,25 +122,52 @@ public class PauseMenuUI : MonoBehaviour
 
     public void OpenSettings()
     {
-        pauseMenuPanel.SetActive(false);
-        settingsPanel.SetActive(true);
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(false);
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(true);
+
+        // อัปเดตค่า Slider ให้ตรงกับค่าระดับเสียงปัจจุบัน
+        float currentVolume = PlayerPrefs.GetFloat(VOLUME_KEY, 1f);
+
+        if (masterVolumeSlider != null)
+            masterVolumeSlider.SetValueWithoutNotify(currentVolume);
     }
 
     public void CloseSettings()
     {
-        settingsPanel.SetActive(false);
-        pauseMenuPanel.SetActive(true);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(true);
     }
 
     public void ChangeMasterVolume(float volume)
     {
-        if (audioManager != null)
-        {
-            audioManager.SetMasterVolume(volume);
-        }
+        ApplyMasterVolume(volume);
+    }
 
+    private void ApplyMasterVolume(float volume)
+    {
+        volume = Mathf.Clamp01(volume);
+
+        // ควบคุมเสียงทั้งหมดทันที
+        AudioListener.volume = volume;
+
+        // อัปเดต AudioManager ตัวกลาง
+        if (audioManager == null)
+            audioManager = AudioManager.Instance;
+
+        if (audioManager != null)
+            audioManager.SetMasterVolume(volume);
+
+        // บันทึกค่าไว้ใช้ข้าม Scene และเมื่อเปิดเกมครั้งถัดไป
         PlayerPrefs.SetFloat(VOLUME_KEY, volume);
         PlayerPrefs.Save();
+
+        Debug.Log("Pause Menu Master Volume: " + (volume * 100f).ToString("F0") + "%");
     }
 
     // =========================
@@ -135,7 +176,6 @@ public class PauseMenuUI : MonoBehaviour
 
     public void BackToMainMenu()
     {
-        // คืนค่าเวลา ก่อนเปลี่ยน Scene
         Time.timeScale = 1f;
         isPaused = false;
 
