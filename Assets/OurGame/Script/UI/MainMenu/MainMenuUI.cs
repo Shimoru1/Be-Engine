@@ -1,83 +1,98 @@
-﻿
-using UnityEngine;
-using UnityEngine.UI;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class MainMenuUI : MonoBehaviour
 {
-    [Header("Panels")]
-    [SerializeField] private GameObject mainMenuPanel;
-    [SerializeField] private GameObject settingsPanel;
+	[Header("Main Menu")]
+	public Image logo;
+	public Image Bg;
+	public Button play;
+	public Button setting;
+	public Button quit;
 
-    [Header("Settings")]
-    [SerializeField] private Slider masterVolumeSlider;
-    [SerializeField] private AudioManager audioManager;
+	[HideInInspector]
+	public bool buttonsShown = false;
 
-    [Header("Scene")]
-    [SerializeField] private string gameSceneName = "GameScene";
+	[Header("Music")]
+	[SerializeField] private AudioSource menuMusic;
 
-    private const string VOLUME_KEY = "MasterVolume";
+	[Header("Button Sound")]
+	[SerializeField] private AudioSource buttonClickAudio;
 
-    private void Start()
-    {
-        // เริ่มต้นที่หน้า Main Menu
-        mainMenuPanel.SetActive(true);
-        settingsPanel.SetActive(false);
+	[Header("Play")]
+	[Tooltip("ชื่อซีนที่จะโหลดเมื่อกด Play (ต้องอยู่ใน Build Profiles)")]
+	public string gameSceneName = "Game";
 
-        // โหลดระดับเสียงที่บันทึกไว้
-        float savedVolume = PlayerPrefs.GetFloat(
-            VOLUME_KEY, 1f
-        );
+	private bool isLoading = false;
 
-        masterVolumeSlider.value = savedVolume;
+	private void Start()
+	{
+		ShowButtonsImmediately();
 
-        // นำค่าไปใช้กับ AudioManager
-        audioManager.SetMasterVolume(savedVolume);
+		if (Bg != null) Bg.gameObject.SetActive(false);
+	}
 
-        // เชื่อม Slider กับระบบเสียง
-        masterVolumeSlider.onValueChanged.AddListener(
-            ChangeMasterVolume
-        );
-    }
+	// ---------------- ปุ่มเมนูหลัก ----------------
+	public void ShowButtons()
+	{
+		ShowButtonsImmediately();
+	}
 
-    // ปุ่ม Play
-    public void PlayGame()
-    {
-        SceneManager.LoadScene(gameSceneName);
-    }
+	public void ShowButtonsImmediately()
+	{
+		play.gameObject.SetActive(true);
+		setting.gameObject.SetActive(true);
+		quit.gameObject.SetActive(true);
 
-    // เปิด Settings
-    public void OpenSettings()
-    {
-        mainMenuPanel.SetActive(false);
-        settingsPanel.SetActive(true);
-    }
+		buttonsShown = true;
+	}
 
-    // กลับ Main Menu
-    public void CloseSettings()
-    {
-        settingsPanel.SetActive(false);
-        mainMenuPanel.SetActive(true);
-    }
+	public void HideRemainingButtons()
+	{
+		play.gameObject.SetActive(false);
+		setting.gameObject.SetActive(false);
+		quit.gameObject.SetActive(false);
+	}
 
-    // ปรับเสียง Master Volume
-    public void ChangeMasterVolume(float volume)
-    {
-        audioManager.SetMasterVolume(volume);
+	public void OnPlayClick()
+	{
+		PlayButtonSound();
+	}
 
-        PlayerPrefs.SetFloat(VOLUME_KEY, volume);
-        PlayerPrefs.Save();
-    }
+	// ผูกกับปุ่ม Play
+	public void Play()
+	{
+		if (isLoading)
+			return;
 
-    // ปุ่ม Quit
-    public void QuitGame()
-    {
-        PlayerPrefs.Save();
+		if (string.IsNullOrEmpty(gameSceneName))
+		{
+			Debug.LogError("[MainMenuUI] gameSceneName ว่างอยู่");
+			return;
+		}
 
-        Application.Quit();
+		isLoading = true;
+		OnPlayClick();
 
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#endif
-    }
+		SceneManager.LoadScene(gameSceneName);
+	}
+
+	public void Quit()
+	{
+		PlayButtonSound();
+		Application.Quit();
+	}
+
+	private void PlayButtonSound()
+	{
+		if (AudioManager.Instance != null)
+		{
+			AudioManager.Instance.PlaySFX("ButtonSound1");
+		}
+		else
+		{
+			Debug.LogError("[ButtonManager] AudioManager.Instance is NULL!");
+		}
+	}
 }

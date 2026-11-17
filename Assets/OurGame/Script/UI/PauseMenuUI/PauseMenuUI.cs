@@ -1,184 +1,260 @@
 ﻿using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
-public class PauseMenuUI : MonoBehaviour
+public class PauseMenu : MonoBehaviour
 {
-    [Header("Pause Panels")]
-    [SerializeField] private GameObject pauseMenuPanel;
-    [SerializeField] private GameObject settingsPanel;
+	public static PauseMenu Instance;
+	public bool tutorialFreeze = false;
 
-    [Header("Audio Settings")]
-    [SerializeField] private Slider masterVolumeSlider;
-    [SerializeField] private AudioManager audioManager;
+	[Header("Pause UI")]
+	[SerializeField] private GameObject pausePanel;
 
-    [Header("Scene Settings")]
-    [SerializeField] private string mainMenuSceneName = "MainMenu";
+	[Header("Setting UI")]
+	[SerializeField] private GameObject settingPanel;
 
-    private const string VOLUME_KEY = "MasterVolume";
-    private bool isPaused;
+	[Header("Button Sound")]
+	[SerializeField] private AudioSource buttonClickAudio;
 
-    private void Start()
-    {
-        // ใช้ AudioManager ตัวกลางที่อยู่ข้าม Scene ก่อน
-        audioManager = AudioManager.Instance;
+	public bool IsPaused { get; private set; } = false;
 
-        // เผื่อกรณีไม่มี Singleton ให้ลองค้นหาใน Scene
-        if (audioManager == null)
-            audioManager = FindFirstObjectByType<AudioManager>();
 
-        if (pauseMenuPanel != null)
-            pauseMenuPanel.SetActive(false);
+	// =========================================================
+	// AWAKE
+	// =========================================================
 
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
+	private void Awake()
+	{
+		Instance = this;
+	}
 
-        isPaused = false;
-        Time.timeScale = 1f;
 
-        // โหลดค่าระดับเสียงที่บันทึกไว้
-        float savedVolume = PlayerPrefs.GetFloat(VOLUME_KEY, 1f);
-        savedVolume = Mathf.Clamp01(savedVolume);
+	// =========================================================
+	// START
+	// =========================================================
 
-        if (masterVolumeSlider != null)
-        {
-            masterVolumeSlider.minValue = 0f;
-            masterVolumeSlider.maxValue = 1f;
-            masterVolumeSlider.wholeNumbers = false;
-            masterVolumeSlider.SetValueWithoutNotify(savedVolume);
+	private void Start()
+	{
+		Time.timeScale = 1f;
 
-            // ป้องกันการเพิ่ม Listener ซ้ำ
-            masterVolumeSlider.onValueChanged.RemoveListener(ChangeMasterVolume);
-            masterVolumeSlider.onValueChanged.AddListener(ChangeMasterVolume);
-            masterVolumeSlider.interactable = true;
-        }
-        else
-        {
-            Debug.LogError("PauseMenuUI: ยังไม่ได้กำหนด Master Volume Slider ใน Inspector!");
-        }
+		IsPaused = false;
 
-        ApplyMasterVolume(savedVolume);
+		if (pausePanel != null)
+			pausePanel.SetActive(false);
 
-        if (audioManager == null)
-            Debug.LogError("PauseMenuUI: ไม่พบ AudioManager ใน Scene หรือ AudioManager.Instance!");
-    }
+		if (settingPanel != null)
+			settingPanel.SetActive(false);
 
-    private void OnDestroy()
-    {
-        if (masterVolumeSlider != null)
-            masterVolumeSlider.onValueChanged.RemoveListener(ChangeMasterVolume);
-    }
+		LockMouse();
+	}
 
-    private void Update()
-    {
-        if (!Input.GetKeyDown(KeyCode.Escape))
-            return;
 
-        if (!isPaused)
-        {
-            PauseGame();
-        }
-        else if (settingsPanel != null && settingsPanel.activeSelf)
-        {
-            CloseSettings();
-        }
-        else
-        {
-            ResumeGame();
-        }
-    }
+	// =========================================================
+	// UPDATE
+	// =========================================================
 
-    // =========================
-    // PAUSE MENU
-    // =========================
+	private void Update()
+	{
+		if (Input.GetKeyDown(KeyCode.Escape))
+		{
+			// ถ้าเกมจบแล้ว ไม่ให้ Pause
+			if (GameManager.Instance != null &&
+				(GameManager.Instance.IsWin() ||
+				 GameManager.Instance.IsGameOver()))
+			{
+				return;
+			}
 
-    public void PauseGame()
-    {
-        isPaused = true;
-        Time.timeScale = 0f;
+			// ถ้าเปิด Setting อยู่ ให้กลับไปหน้า Pause ก่อน
+			if (IsPaused &&
+				settingPanel != null &&
+				settingPanel.activeSelf)
+			{
+				CloseSetting();
+				return;
+			}
 
-        if (pauseMenuPanel != null)
-            pauseMenuPanel.SetActive(true);
+			// ถ้าไม่ได้เปิด Setting ให้ทำงานตามปกติ
+			TogglePause();
+		}
+	}
 
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
-    }
 
-    public void ResumeGame()
-    {
-        isPaused = false;
-        Time.timeScale = 1f;
+	// =========================================================
+	// TOGGLE
+	// =========================================================
 
-        if (pauseMenuPanel != null)
-            pauseMenuPanel.SetActive(false);
+	public void TogglePause()
+	{
+		if (IsPaused)
+		{
+			ContinueGame();
+		}
+		else
+		{
+			PauseGame();
+		}
+	}
 
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
-    }
 
-    // =========================
-    // SETTINGS
-    // =========================
+	// =========================================================
+	// PAUSE
+	// =========================================================
 
-    public void OpenSettings()
-    {
-        if (pauseMenuPanel != null)
-            pauseMenuPanel.SetActive(false);
+	public void PauseGame()
+	{
+		if (GameManager.Instance == null)
+			return;
 
-        if (settingsPanel != null)
-            settingsPanel.SetActive(true);
+		if (!tutorialFreeze &&
+			!GameManager.Instance.IsPlaying() &&
+			!GameManager.Instance.IsStarting())
+			return;
 
-        // อัปเดตค่า Slider ให้ตรงกับค่าระดับเสียงปัจจุบัน
-        float currentVolume = PlayerPrefs.GetFloat(VOLUME_KEY, 1f);
+		IsPaused = true;
 
-        if (masterVolumeSlider != null)
-            masterVolumeSlider.SetValueWithoutNotify(currentVolume);
-    }
+		// ตอน tutorial freeze เกมหยุดอยู่แล้ว ไม่ต้องหยุดซ้ำ
+		if (!tutorialFreeze)
+			GameManager.Instance.PauseGame();
 
-    public void CloseSettings()
-    {
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
+		AudioListener.pause = true;
 
-        if (pauseMenuPanel != null)
-            pauseMenuPanel.SetActive(true);
-    }
+		if (pausePanel != null) pausePanel.SetActive(true);
+		if (settingPanel != null) settingPanel.SetActive(false);
 
-    public void ChangeMasterVolume(float volume)
-    {
-        ApplyMasterVolume(volume);
-    }
+		UnlockMouse();
+	}
 
-    private void ApplyMasterVolume(float volume)
-    {
-        volume = Mathf.Clamp01(volume);
+	public void ContinueGame()
+	{
+		if (!IsPaused)
+			return;
 
-        // ควบคุมเสียงทั้งหมดทันที
-        AudioListener.volume = volume;
+		AudioListener.pause = false;
+		PlayButtonSound();
+		IsPaused = false;
 
-        // อัปเดต AudioManager ตัวกลาง
-        if (audioManager == null)
-            audioManager = AudioManager.Instance;
+		// ตอน tutorial freeze ห้าม resume เกม ให้กลับไปที่กรอบเดิม
+		if (GameManager.Instance != null && !tutorialFreeze)
+			GameManager.Instance.ResumeGame();
 
-        if (audioManager != null)
-            audioManager.SetMasterVolume(volume);
+		if (pausePanel != null) pausePanel.SetActive(false);
+		if (settingPanel != null) settingPanel.SetActive(false);
 
-        // บันทึกค่าไว้ใช้ข้าม Scene และเมื่อเปิดเกมครั้งถัดไป
-        PlayerPrefs.SetFloat(VOLUME_KEY, volume);
-        PlayerPrefs.Save();
+		if (tutorialFreeze)
+		{
+			UnlockMouse();
+		}
+		else
+		{
+			LockMouse();
+			StartCoroutine(LockMouseNextFrame());
+		}
+	}
 
-        Debug.Log("Pause Menu Master Volume: " + (volume * 100f).ToString("F0") + "%");
-    }
 
-    // =========================
-    // BACK TO MAIN MENU
-    // =========================
+	// =========================================================
+	// SETTING
+	// =========================================================
 
-    public void BackToMainMenu()
-    {
-        Time.timeScale = 1f;
-        isPaused = false;
+	public void OpenSetting()
+	{
+		if (!IsPaused)
+			return;
 
-        SceneManager.LoadScene(mainMenuSceneName);
-    }
+		PlayButtonSound();
+
+		if (pausePanel != null)
+			pausePanel.SetActive(false);
+
+		if (settingPanel != null)
+			settingPanel.SetActive(true);
+
+		UnlockMouse();
+
+		Debug.Log("SETTING OPEN");
+	}
+
+
+
+	// =========================================================
+	// CLOSE SETTING
+	// =========================================================
+
+	public void CloseSetting()
+	{
+		if (!IsPaused)
+			return;
+
+		PlayButtonSound();
+
+		if (settingPanel != null)
+			settingPanel.SetActive(false);
+
+		if (pausePanel != null)
+			pausePanel.SetActive(true);
+
+		UnlockMouse();
+
+		Debug.Log("SETTING CLOSED");
+	}
+
+
+
+	// =========================================================
+	// EXIT
+	// =========================================================
+
+	public void ExitGame()
+	{
+		AudioListener.pause = false;
+
+		PlayButtonSound();
+
+		Time.timeScale = 1f;
+		IsPaused = false;
+
+		Cursor.lockState = CursorLockMode.None;
+		Cursor.visible = true;
+
+		SceneManager.LoadScene("MainMenu");
+	}
+
+	private void PlayButtonSound()
+	{
+		if (AudioManager.Instance != null)
+		{
+			AudioManager.Instance.PlaySFX("ButtonSound1");
+		}
+		else
+		{
+			Debug.LogWarning(
+				"[PauseMenu] AudioManager.Instance is NULL!"
+			);
+		}
+	}
+
+	// =========================================================
+	// MOUSE
+	// =========================================================
+
+	public void UnlockMouse()
+	{
+		Cursor.lockState = CursorLockMode.None;
+		Cursor.visible = true;
+	}
+
+	public void LockMouse()
+	{
+		Cursor.lockState = CursorLockMode.Locked;
+		Cursor.visible = false;
+	}
+	private System.Collections.IEnumerator LockMouseNextFrame()
+	{
+		// รอให้ Esc ถูกประมวลผลเสร็จก่อน แล้วล็อกซ้ำ
+		yield return null;
+		LockMouse();
+
+		yield return null;
+		LockMouse();
+	}
 }
