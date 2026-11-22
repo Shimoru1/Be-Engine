@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05263bcef1ac6444a9f51c0a4f751ad6, type: 3}
+  m_Name: OrangeCar_Sound
+  m_EditorClassIdentifier: Assembly-CSharp::CarSoundSet
+  gearSounds:
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  - engineClip: {fileID: 8300000, guid: 085b1440f4dc3644b83a1f7ee9cf1672, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    lowRevVolume: 0.75
+  brakeClip: {fileID: 0}
+  brakeVolume: 0.4
+  previewClip: {fileID: 8300000, guid: d6510c30f435a074399cef0d6db22319, type: 3}
+  previewPitchMin: 1
+  previewPitchMax: 1

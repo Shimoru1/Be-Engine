@@ -1,17 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// รถผู้เล่น
-///  - RPM = ความถี่การกดจริง: กด 37 ครั้ง/วินาที = 2220 RPM ทันที
-///    พอปล่อยปุ่ม RPM จะค่อยๆ ลดลงพร้อมความเร็ว จนถึง 0 เมื่อ KPH = 0
-///  - ความเร็ว: กด 1 ครั้งเพิ่ม kphPerPress x accelMultiplier ของเกียร์นั้น, ปล่อยปุ่ม = ค่อยๆ ลด
-///  - รถเลี้ยวเอง (pure pursuit ไล่เส้นที่วาด) ตลอดทั้งในและนอกโซน
-///  - นอกโซน: ASD+JKL เร่ง, Space ขึ้นเกียร์ (ปล่อยปุ่มแล้ว = ลดเกียร์)
-///  - ในโซน (CornerZone): JKL เร่ง, S เบรค (กดค้างตอนหยุดนิ่ง = ถอยหลัง), Space ลดเกียร์
-///  - เร็วเกิน grip => เลี้ยวไม่ทัน หลุดออกนอกเส้นแต่ยังพยายามกลับเข้าเส้น
-///  - รถเกาะพื้นได้ทุกที่ (raycast ลงพื้น ไม่มีขอบสนาม/ไม่มีการชน)
-/// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class CarController : MonoBehaviour
 {
@@ -28,6 +17,19 @@ public class CarController : MonoBehaviour
 
 	[Header("References")]
 	public PathDrawer path;
+
+	[Header("Audio")]
+	public CarSoundSet soundSet;
+	[Header("Respawn (Reset Zone)")]
+	[Tooltip("รถอยู่ห่างเส้นทางไม่เกินระยะนี้ถือว่าอยู่บนเส้น และบันทึกเป็นจุดปลอดภัยล่าสุด")]
+	public float onPathDistance = 6f;
+	[Tooltip("ระยะย้อนหลังตามเส้นทางตอนวาร์ป (จำนวนจุด) กันเกิดซ้ำตรงจุดที่เพิ่งพลาด")]
+	public int respawnBacktrackPoints = 3;
+	[Tooltip("ติ๊ก = เริ่มที่จุดเริ่มของเส้นทาง / ไม่ติ๊ก = เริ่มที่ตำแหน่งและทิศที่รถถูกวาง")]
+	public bool startAtPathStart = true;
+
+	[Tooltip("เร่งไว้ตอนนับถอยหลัง แล้วออกตัวด้วยความเร็วนั้น (ปิด = ออกตัวจาก 0)")]
+	public bool keepRevSpeedOnLaunch = true;
 
 	[Header("Gears (6 speed)")]
 	public Gear[] gears =
@@ -72,11 +74,11 @@ public class CarController : MonoBehaviour
 	public float reverseDecelKph = 40f;
 
 	[Header("Shift light thresholds (ความเร็ว / เพดานเกียร์)")]
-	[Range(0, 1)] public float stage1Ratio = 0.55f;   // จุดแรกเริ่มติด
+	[Range(0, 1)] public float stage1Ratio = 0.55f; 
 	[Range(0, 1)] public float stage2Ratio = 0.75f;
 	[Range(0, 1)] public float stage3Ratio = 0.90f;
 	[Range(0, 1)] public float stage4Ratio = 0.95f;
-	[Range(0, 1)] public float shiftNowRatio = 0.985f; // ! SHIFT !
+	[Range(0, 1)] public float shiftNowRatio = 0.985f;
 
 	[Header("Model")]
 	[Tooltip("หมุนโมเดลรถเพื่อให้หัวรถหันไปทางที่วิ่ง (ถ้าโมเดลหันหลังให้ใช้ 180)")]
@@ -120,20 +122,21 @@ public class CarController : MonoBehaviour
 	public Vector3 HeadingForward => Quaternion.Euler(0f, heading, 0f) * Vector3.forward;
 	public Gear CurrentGear => gears[Mathf.Clamp(gearIndex, 0, gears.Length - 1)];
 	public bool IsTopGear => gearIndex >= gears.Length - 1;
-	/// <summary>ความเร็ว / เพดานของเกียร์ปัจจุบัน (0..1+)</summary>
+
 	public float GearRatio => SpeedKph / Mathf.Max(1f, CurrentGear.maxSpeedKph);
 
-	// ---------- สำหรับ AudioManager ----------
-	public int GearIndex => gearIndex;                       // 0-based
+	// ---------- AudioManager ----------
+	public int GearIndex => gearIndex;                  
 	public bool Started => started;
+	public int PathIndex => nearest;                                   
+	public int PathCount => path != null ? path.Points.Count : 0;
 	bool shiftLocked = true;
 	public bool BrakeHeld { get; private set; }
 	public float TimeSinceLastPress => Time.time - lastPressTime;
-	public event System.Action Accelerated;                  // ยิงทุกครั้งที่กดเร่ง
-	public event System.Action BrakeStarted;                 // กด S เริ่มเบรค (ในโซน, ไม่ได้เร่งพร้อมกัน)
-	public event System.Action<int, int> GearChanged;        // (เกียร์เก่า, เกียร์ใหม่) 0-based
+	public event System.Action Accelerated;                 
+	public event System.Action BrakeStarted;                
+	public event System.Action<int, int> GearChanged;        
 
-	/// <summary>0 = ไม่มี, 1..3 = กำลังจะถึงเพดาน, 4 = ! SHIFT ! (เกียร์สุดท้ายไม่มีขั้น 4)</summary>
 	public int ShiftStage
 	{
 		get
@@ -151,23 +154,25 @@ public class CarController : MonoBehaviour
 
 	// ---------- internals ----------
 	static readonly KeyCode[] accelKeys = { KeyCode.J, KeyCode.K, KeyCode.L };
-	static readonly KeyCode[] steerKeys = { KeyCode.A, KeyCode.S, KeyCode.D }; // นอกโซน = ปุ่มเร่ง
+	static readonly KeyCode[] steerKeys = { KeyCode.A, KeyCode.S, KeyCode.D }; 
 
 	readonly HashSet<CornerZone> zones = new HashSet<CornerZone>();
 	readonly RaycastHit[] hits = new RaycastHit[8];
 	readonly Queue<float> pressTimes = new Queue<float>();
 
-	float speed;        // kph (เดินหน้า)
-	float reverseSpeed; // kph (ถอยหลัง)
-	float tapRpm;       // RPM ที่แสดง
-	float rpmRef;       // RPM ล่าสุดตอนยังกดอยู่
-	float speedRef;     // ความเร็วล่าสุดตอนยังกดอยู่
+	float speed;        
+	float reverseSpeed; 
+	float tapRpm;      
+	float rpmRef;      
+	float speedRef;    
 	int gearIndex;
 	float heading;
 	int nearest;
 	float lastPressTime = -10f;
 	float nextShiftTime;
 	bool started;
+	int lastSafeIndex = -1;
+	bool wasHolding;
 	Vector3 groundNormal = Vector3.up;
 
 	void Awake()
@@ -196,21 +201,61 @@ public class CarController : MonoBehaviour
 	void Update()
 	{
 		if (path == null || !path.IsClosed) { started = false; return; }
+
+		var gm = GameManager.Instance;
+		if (gm != null && (gm.State == GameManager.GameState.Selecting || gm.State == GameManager.GameState.Paused))
+			return;
+
 		if (!started) StartRun();
+
+		bool hold = gm != null && gm.State == GameManager.GameState.Starting;
 
 		float dt = Time.deltaTime;
 		HandleInput(dt);
-		Drive(dt);
+
+		if (hold)
+		{
+			wasHolding = true;
+		}
+		else
+		{
+			if (wasHolding)
+			{
+				wasHolding = false;
+				if (!keepRevSpeedOnLaunch) speed = 0f;
+			}
+			Drive(dt);
+			TrackSafePoint();
+			SnapToGround(dt);
+		}
+
 		SnapToGround(dt);
 	}
 
 	void StartRun()
 	{
-		Vector3 d = path.StartDirection;
-		heading = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
-		Vector3 p = path.StartPoint;
-		p.y = transform.position.y;
-		transform.position = p;
+		if (startAtPathStart)
+		{
+			Vector3 d = path.StartDirection;
+			heading = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+			Vector3 p = path.StartPoint;
+			p.y = transform.position.y;
+			transform.position = p;
+			nearest = 0;
+		}
+		else
+		{
+			heading = transform.eulerAngles.y - modelYawOffset;
+			var pts = path.Points;
+			float bestD = float.MaxValue;
+			nearest = 0;
+			for (int i = 0; i < pts.Count; i++)
+			{
+				float dd = FlatSqr(pts[i], transform.position);
+				if (dd < bestD) { bestD = dd; nearest = i; }
+			}
+		}
+
 		transform.rotation = Quaternion.Euler(0f, heading + modelYawOffset, 0f);
 		speed = 0f;
 		reverseSpeed = 0f;
@@ -220,11 +265,9 @@ public class CarController : MonoBehaviour
 		pressTimes.Clear();
 		gearIndex = 0;
 		shiftLocked = true;
-		nearest = 0;
 		started = true;
 	}
 
-	// ---------------- input: กดย้ำ / เกียร์ / เบรค / ถอย ----------------
 	void HandleInput(float dt)
 	{
 		bool inZone = InZone;
@@ -232,7 +275,7 @@ public class CarController : MonoBehaviour
 		int presses = 0;
 		for (int i = 0; i < accelKeys.Length; i++)
 			if (Input.GetKeyDown(accelKeys[i])) presses++;
-		if (!inZone) // นอกโซน ASD ก็เป็นปุ่มเร่ง
+		if (!inZone)
 			for (int i = 0; i < steerKeys.Length; i++)
 				if (Input.GetKeyDown(steerKeys[i])) presses++;
 
@@ -244,9 +287,9 @@ public class CarController : MonoBehaviour
 			lastPressTime = Time.time;
 			for (int i = 0; i < presses; i++) pressTimes.Enqueue(Time.time);
 			float add = presses * kphPerPress * g.accelMultiplier * (inZone ? zoneAccelMultiplier : 1f);
-			speed = Mathf.Min(speed + add, Mathf.Max(cap, speed)); // ชนเพดานเกียร์ = ต้องขึ้นเกียร์
-			reverseSpeed = 0f;                                      // กดเร่ง = เลิกถอย
-			shiftLocked = false;                                    // เร่งแล้ว = ขึ้นเกียร์ได้
+			speed = Mathf.Min(speed + add, Mathf.Max(cap, speed));
+			reverseSpeed = 0f;                                    
+			shiftLocked = false;                                    
 			Accelerated?.Invoke();
 		}
 
@@ -264,7 +307,6 @@ public class CarController : MonoBehaviour
 
 		speed = Mathf.Max(0f, speed);
 
-		// ถอยหลัง: อยู่ในโซน + หยุดนิ่ง + กด S ค้าง
 		bool wantReverse = BrakeHeld && speed < 0.5f && presses == 0;
 		if (wantReverse)
 			reverseSpeed = Mathf.Min(maxReverseKph, reverseSpeed + reverseAccelKph * dt);
@@ -273,13 +315,8 @@ public class CarController : MonoBehaviour
 
 		UpdateTapRpm();
 
-		// จอดนิ่ง (N) -> กลับเกียร์ 1 อัตโนมัติ
 		if (speed < 0.5f && gearIndex > 0) SetGear(0);
 
-		// Space:
-		//  - ในโซน = ลดเกียร์
-		//  - นอกโซน = ขึ้นเกียร์ (ขณะกำลังกดย้ำ) / ลดเกียร์ (เมื่อปล่อยปุ่มเร่งไปแล้ว)
-		//  - ถ้าชนเพดานเกียร์ (! SHIFT !) จะขึ้นเกียร์เสมอ
 		if (Input.GetKeyDown(KeyCode.Space) && Time.time >= nextShiftTime)
 		{
 			bool released = Time.time - lastPressTime > downshiftIdleTime;
@@ -288,8 +325,6 @@ public class CarController : MonoBehaviour
 		}
 	}
 
-	// ตอนกด: RPM = ความถี่กด x 60 (ขึ้นทันที)
-	// ตอนปล่อย: RPM ลดตามความเร็ว (สัดส่วนเดียวกัน) จนเป็น 0 พร้อม KPH = 0
 	void UpdateTapRpm()
 	{
 		float now = Time.time;
@@ -301,7 +336,7 @@ public class CarController : MonoBehaviour
 		if (pressing)
 		{
 			float span = Mathf.Max(0.02f, lastPressTime - pressTimes.Peek());
-			float rate = (n - 1) / span;                 // ครั้ง/วินาที
+			float rate = (n - 1) / span;                
 			tapRpm = rate * rpmPerTapPerSecond;
 			rpmRef = tapRpm;
 			speedRef = Mathf.Max(speed, 0.01f);
@@ -324,12 +359,50 @@ public class CarController : MonoBehaviour
 		GearChanged?.Invoke(old, index);
 	}
 
-	// ---------------- เลี้ยวเอง + เคลื่อนที่ ----------------
+	void TrackSafePoint()
+	{
+		if (path == null || !path.IsClosed) return;
+		var pts = path.Points;
+		int idx = nearest;
+		if (idx < 0 || idx >= pts.Count) return;
+		if (FlatSqr(pts[idx], transform.position) <= onPathDistance * onPathDistance)
+			lastSafeIndex = idx;
+	}
+
+	public void RespawnAtLastSafe()
+	{
+		if (path == null || !path.IsClosed) return;
+		var pts = path.Points;
+		int n = pts.Count;
+		if (lastSafeIndex < 0) lastSafeIndex = 0;
+
+		int i = ((lastSafeIndex - respawnBacktrackPoints) % n + n) % n;
+		Vector3 p = pts[i];
+		Vector3 d = pts[(i + 1) % n] - p;
+		d.y = 0f;
+		if (d.sqrMagnitude < 0.0001f) d = Vector3.forward;
+
+		heading = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+		p.y = transform.position.y;
+		transform.position = p;
+		transform.rotation = Quaternion.Euler(0f, heading + modelYawOffset, 0f);
+
+		nearest = i;
+		speed = 0f;
+		reverseSpeed = 0f;
+		tapRpm = 0f;
+		rpmRef = 0f;
+		speedRef = 0f;
+		pressTimes.Clear();
+		gearIndex = 0;
+		shiftLocked = true;
+		zones.Clear();
+	}
+
 	void Drive(float dt)
 	{
 		float s = Mathf.Max(0.1f, visualSpeedScale);
 
-		// ถอยหลัง: ถอยตรงๆ ตามทิศหัวรถ ไม่ไล่เส้น
 		if (reverseSpeed > 0.01f)
 		{
 			float vr = reverseSpeed / 3.6f * metersToWorld * s;
@@ -337,12 +410,11 @@ public class CarController : MonoBehaviour
 			return;
 		}
 
-		float v = speed / 3.6f * metersToWorld;   // ความเร็วตามเลข KPH (ใช้คำนวณ grip)
-		float vw = v * s;                          // ความเร็วที่เห็นในฉาก
+		float v = speed / 3.6f * metersToWorld; 
+		float vw = v * s;                         
 
 		float yaw = ComputeAutoYaw(vw);
 
-		// grip คิดจากเลข KPH แล้วคูณ s ให้ตรงกับความเร็วที่เห็น -> หลุดโค้งที่ KPH เท่าเดิม
 		float maxYaw = s * Mathf.Min(maxYawRateDeg * Mathf.Deg2Rad, lateralGrip / Mathf.Max(v, 0.1f));
 		float ratio = Mathf.Abs(yaw) / Mathf.Max(0.0001f, maxYaw);
 		if (ratio > 1f)
@@ -353,7 +425,6 @@ public class CarController : MonoBehaviour
 		transform.position += HeadingForward * (vw * dt);
 	}
 
-	// Pure pursuit: คืนค่า yaw rate (rad/s) ที่ต้องใช้เพื่อไล่เข้าเส้น
 	float ComputeAutoYaw(float v)
 	{
 		var pts = path.Points;
@@ -372,7 +443,7 @@ public class CarController : MonoBehaviour
 		float dist = to.magnitude;
 		if (dist < 0.01f) return 0f;
 
-		float alpha = Vector3.SignedAngle(HeadingForward, to, Vector3.up); // + = ขวา
+		float alpha = Vector3.SignedAngle(HeadingForward, to, Vector3.up);
 		alpha = Mathf.Clamp(alpha, -90f, 90f) * Mathf.Deg2Rad;
 		float curvature = 2f * Mathf.Sin(alpha) / dist;
 		return v * curvature;
@@ -393,7 +464,6 @@ public class CarController : MonoBehaviour
 		}
 		if (bestD <= relockDistance * relockDistance) return best;
 
-		// หลุดไกลเกิน -> ค้นหาใหม่ทั้งเส้น
 		bestD = float.MaxValue;
 		for (int i = 0; i < n; i++)
 		{
@@ -409,19 +479,17 @@ public class CarController : MonoBehaviour
 		return dx * dx + dz * dz;
 	}
 
-	// ---------------- เกาะพื้นได้ทุกที่ ----------------
 	void SnapToGround(float dt)
 	{
 		Vector3 origin = transform.position + Vector3.up * groundRayHeight;
-		int c = Physics.RaycastNonAlloc(origin, Vector3.down, hits, groundRayHeight + groundRayLength,
-										groundMask, QueryTriggerInteraction.Ignore);
+		int c = Physics.RaycastNonAlloc(origin, Vector3.down, hits, groundRayHeight + groundRayLength, groundMask, QueryTriggerInteraction.Ignore);
 		float best = float.MaxValue;
 		bool found = false;
 		float y = 0f;
 		Vector3 normal = Vector3.up;
 		for (int i = 0; i < c; i++)
 		{
-			if (hits[i].collider.transform.root == transform.root) continue; // ข้ามตัวรถเอง
+			if (hits[i].collider.transform.root == transform.root) continue; 
 			if (hits[i].distance < best)
 			{
 				best = hits[i].distance;

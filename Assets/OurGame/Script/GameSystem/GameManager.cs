@@ -9,7 +9,8 @@ public class GameManager : MonoBehaviour
 
 	public enum GameState
 	{
-		Starting,   // นับถอยหลัง / intro
+		Selecting,  
+		Starting,   
 		Playing,
 		Paused,
 		Win,
@@ -17,44 +18,53 @@ public class GameManager : MonoBehaviour
 	}
 
 	[Header("Start")]
-	[Tooltip("เวลาช่วง Starting ก่อนเริ่มเล่นจริง (วินาที) 0 = เริ่มเล่นทันที")]
+	[Tooltip("เวลานับถอยหลังก่อนเริ่มเล่นจริง (วินาที) 0 = เริ่มทันที")]
 	public float startDelay = 3f;
+	[Tooltip("ติ๊ก = รอหน้าเลือกรถ (CarSelectUI) เรียก BeginCountdown / ไม่ติ๊ก = นับถอยหลังเองทันที")]
+	public bool waitForCarSelect = true;
 
 	[Header("Test")]
-	[Tooltip("ติ๊ก = โหมดทดสอบ (AudioManager เดิมของโปรเจกต์อื่นเคยเช็คค่านี้)")]
+	[Tooltip("ติ๊ก = โหมดทดสอบ")]
 	public bool isTestMode = false;
 	public bool IsTestMode => isTestMode;
 
-	public GameState State { get; private set; } = GameState.Starting;
+	public GameState State { get; private set; } = GameState.Selecting;
+	public float CountdownRemaining { get; private set; }
+	public float RaceTime { get; private set; }
 
-	// สคริปต์อื่นสมัครฟังได้
 	public event Action<GameState> StateChanged;
+	public event Action<int> CountdownTick;  
 	public event Action GameStarted;
 	public event Action Won;
 	public event Action Lost;
 
 	private GameState stateBeforePause = GameState.Playing;
+	private Coroutine countdownRoutine;
 
 	// ==============================
 	// Lifecycle
 	// ==============================
 	private void Awake()
 	{
-		// GameManager อยู่ประจำซีนเกม ไม่ใช้ DontDestroyOnLoad
-		// (ถ้าอยากให้ข้ามซีน ให้เปิดบรรทัดข้างล่างและวางไว้ที่ root)
 		if (Instance != null && Instance != this)
 		{
 			Destroy(gameObject);
 			return;
 		}
 		Instance = this;
-		// DontDestroyOnLoad(gameObject);
 	}
 
 	private void Start()
 	{
 		Time.timeScale = 1f;
-		StartCoroutine(StartRoutine());
+
+		if (waitForCarSelect) SetState(GameState.Selecting);
+		else BeginCountdown();
+	}
+
+	private void Update()                              
+	{
+		if (State == GameState.Playing) RaceTime += Time.deltaTime;   
 	}
 
 	private void OnDestroy()
@@ -63,23 +73,54 @@ public class GameManager : MonoBehaviour
 			Instance = null;
 	}
 
-	private IEnumerator StartRoutine()
+	// ==============================
+	// Countdown
+	// ==============================
+	public void BeginCountdown()
+	{
+		if (countdownRoutine != null) return;
+		if (IsWin() || IsGameOver()) return;
+		countdownRoutine = StartCoroutine(CountdownRoutine());
+	}
+
+	private IEnumerator CountdownRoutine()
 	{
 		SetState(GameState.Starting);
 
-		if (startDelay > 0f)
-			yield return new WaitForSecondsRealtime(startDelay);
+		float remaining = Mathf.Max(0f, startDelay);
+		int lastShown = -1;
+
+		while (remaining > 0f)
+		{
+			CountdownRemaining = remaining;
+
+			int shown = Mathf.CeilToInt(remaining);
+			if (shown != lastShown)
+			{
+				lastShown = shown;
+				CountdownTick?.Invoke(shown);
+			}
+
+			remaining -= Time.deltaTime; 
+			yield return null;
+		}
+
+		CountdownRemaining = 0f;
+		CountdownTick?.Invoke(0);
 
 		if (State == GameState.Starting)
 		{
 			SetState(GameState.Playing);
 			GameStarted?.Invoke();
 		}
+
+		countdownRoutine = null;
 	}
 
 	// ==============================
-	// State queries (PauseMenu ใช้)
+	// State queries
 	// ==============================
+	public bool IsSelecting() => State == GameState.Selecting;
 	public bool IsStarting() => State == GameState.Starting;
 	public bool IsPlaying() => State == GameState.Playing;
 	public bool IsPaused() => State == GameState.Paused;
@@ -91,7 +132,7 @@ public class GameManager : MonoBehaviour
 	// ==============================
 	public void PauseGame()
 	{
-		if (State != GameState.Playing && State != GameState.Starting)
+		if (State != GameState.Playing && State != GameState.Starting && State != GameState.Selecting)
 			return;
 
 		stateBeforePause = State;
@@ -146,13 +187,15 @@ public class GameManager : MonoBehaviour
 
 	private void ResetForSceneChange()
 	{
+		if (AudioManager.Instance != null)
+		{
+			AudioManager.Instance.DetachCar();
+			AudioManager.Instance.SilenceAllForSceneChange();
+		}
 		Time.timeScale = 1f;
 		AudioListener.pause = false;
 	}
 
-	// ==============================
-	// Internal
-	// ==============================
 	private void SetState(GameState newState)
 	{
 		if (State == newState) return;

@@ -29,8 +29,8 @@ public class AutoTileByScale : MonoBehaviour
 		var st = new Vector4(Pick(size, uAxis) * tilesPerUnit, Pick(size, vAxis) * tilesPerUnit, 0f, 0f);
 
 		rend.GetPropertyBlock(mpb);
-		mpb.SetVector("_BaseMap_ST", st);   // URP Lit
-		mpb.SetVector("_MainTex_ST", st);   // Built-in
+		mpb.SetVector("_BaseMap_ST", st);   
+		mpb.SetVector("_MainTex_ST", st);   
 		rend.SetPropertyBlock(mpb);
 	}
 }

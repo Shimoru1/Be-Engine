@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class PauseMenu : MonoBehaviour
 {
@@ -17,20 +18,10 @@ public class PauseMenu : MonoBehaviour
 
 	public bool IsPaused { get; private set; } = false;
 
-
-	// =========================================================
-	// AWAKE
-	// =========================================================
-
 	private void Awake()
 	{
 		Instance = this;
 	}
-
-
-	// =========================================================
-	// START
-	// =========================================================
 
 	private void Start()
 	{
@@ -44,19 +35,16 @@ public class PauseMenu : MonoBehaviour
 		if (settingPanel != null)
 			settingPanel.SetActive(false);
 
+		EnsureOnTop(pausePanel);
+		EnsureOnTop(settingPanel);
+
 		LockMouse();
 	}
-
-
-	// =========================================================
-	// UPDATE
-	// =========================================================
 
 	private void Update()
 	{
 		if (Input.GetKeyDown(KeyCode.Escape))
 		{
-			// ถ้าเกมจบแล้ว ไม่ให้ Pause
 			if (GameManager.Instance != null &&
 				(GameManager.Instance.IsWin() ||
 				 GameManager.Instance.IsGameOver()))
@@ -64,7 +52,6 @@ public class PauseMenu : MonoBehaviour
 				return;
 			}
 
-			// ถ้าเปิด Setting อยู่ ให้กลับไปหน้า Pause ก่อน
 			if (IsPaused &&
 				settingPanel != null &&
 				settingPanel.activeSelf)
@@ -73,15 +60,9 @@ public class PauseMenu : MonoBehaviour
 				return;
 			}
 
-			// ถ้าไม่ได้เปิด Setting ให้ทำงานตามปกติ
 			TogglePause();
 		}
 	}
-
-
-	// =========================================================
-	// TOGGLE
-	// =========================================================
 
 	public void TogglePause()
 	{
@@ -95,11 +76,6 @@ public class PauseMenu : MonoBehaviour
 		}
 	}
 
-
-	// =========================================================
-	// PAUSE
-	// =========================================================
-
 	public void PauseGame()
 	{
 		if (GameManager.Instance == null)
@@ -107,12 +83,12 @@ public class PauseMenu : MonoBehaviour
 
 		if (!tutorialFreeze &&
 			!GameManager.Instance.IsPlaying() &&
-			!GameManager.Instance.IsStarting())
+			!GameManager.Instance.IsStarting() &&
+			!GameManager.Instance.IsSelecting())
 			return;
 
 		IsPaused = true;
 
-		// ตอน tutorial freeze เกมหยุดอยู่แล้ว ไม่ต้องหยุดซ้ำ
 		if (!tutorialFreeze)
 			GameManager.Instance.PauseGame();
 
@@ -133,14 +109,13 @@ public class PauseMenu : MonoBehaviour
 		PlayButtonSound();
 		IsPaused = false;
 
-		// ตอน tutorial freeze ห้าม resume เกม ให้กลับไปที่กรอบเดิม
 		if (GameManager.Instance != null && !tutorialFreeze)
 			GameManager.Instance.ResumeGame();
 
 		if (pausePanel != null) pausePanel.SetActive(false);
 		if (settingPanel != null) settingPanel.SetActive(false);
 
-		if (tutorialFreeze)
+		if (tutorialFreeze || (GameManager.Instance != null && GameManager.Instance.IsSelecting()))
 		{
 			UnlockMouse();
 		}
@@ -151,10 +126,6 @@ public class PauseMenu : MonoBehaviour
 		}
 	}
 
-
-	// =========================================================
-	// SETTING
-	// =========================================================
 
 	public void OpenSetting()
 	{
@@ -174,12 +145,6 @@ public class PauseMenu : MonoBehaviour
 		Debug.Log("SETTING OPEN");
 	}
 
-
-
-	// =========================================================
-	// CLOSE SETTING
-	// =========================================================
-
 	public void CloseSetting()
 	{
 		if (!IsPaused)
@@ -198,14 +163,10 @@ public class PauseMenu : MonoBehaviour
 		Debug.Log("SETTING CLOSED");
 	}
 
-
-
-	// =========================================================
-	// EXIT
-	// =========================================================
-
 	public void ExitGame()
 	{
+		if (AudioManager.Instance != null) AudioManager.Instance.DetachCar();
+		if (AudioManager.Instance != null) AudioManager.Instance.SilenceAllForSceneChange();
 		AudioListener.pause = false;
 
 		PlayButtonSound();
@@ -219,6 +180,23 @@ public class PauseMenu : MonoBehaviour
 		SceneManager.LoadScene("MainMenu");
 	}
 
+	public void RestartGame()
+	{
+		if (AudioManager.Instance != null) AudioManager.Instance.DetachCar();
+		if (AudioManager.Instance != null) AudioManager.Instance.SilenceAllForSceneChange();
+		AudioListener.pause = false;
+
+		PlayButtonSound();
+
+		Time.timeScale = 1f;
+		IsPaused = false;
+
+		Cursor.lockState = CursorLockMode.None;
+		Cursor.visible = true;
+
+		SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+	}
+
 	private void PlayButtonSound()
 	{
 		if (AudioManager.Instance != null)
@@ -227,15 +205,9 @@ public class PauseMenu : MonoBehaviour
 		}
 		else
 		{
-			Debug.LogWarning(
-				"[PauseMenu] AudioManager.Instance is NULL!"
-			);
+			Debug.LogWarning("[PauseMenu] AudioManager.Instance is NULL!");
 		}
 	}
-
-	// =========================================================
-	// MOUSE
-	// =========================================================
 
 	public void UnlockMouse()
 	{
@@ -250,11 +222,25 @@ public class PauseMenu : MonoBehaviour
 	}
 	private System.Collections.IEnumerator LockMouseNextFrame()
 	{
-		// รอให้ Esc ถูกประมวลผลเสร็จก่อน แล้วล็อกซ้ำ
 		yield return null;
 		LockMouse();
 
 		yield return null;
 		LockMouse();
+	}
+	private void EnsureOnTop(GameObject panel)
+	{
+		if (panel == null) return;
+
+		var canvas = panel.GetComponentInParent<Canvas>(true);
+		if (canvas == null) return;
+
+		var own = panel.GetComponent<Canvas>();
+		if (own == null) own = panel.AddComponent<Canvas>();
+		own.overrideSorting = true;
+		own.sortingOrder = 500;
+
+		if (panel.GetComponent<GraphicRaycaster>() == null)
+			panel.AddComponent<GraphicRaycaster>();
 	}
 }

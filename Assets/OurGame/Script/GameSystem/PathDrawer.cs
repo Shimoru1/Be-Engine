@@ -2,19 +2,13 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// เส้นทางวิ่งที่ "วาดไว้ล่วงหน้าใน Scene view" (ไม่ได้วาดตอนเริ่มเกม)
-/// วิธีใช้: เลือก GameObject นี้ > กดปุ่ม Start Drawing ใน Inspector > กดซ้ายค้างแล้วลากใน Scene view
-/// ลากจนปลายเส้นกลับมาชนจุดเริ่ม เส้นจะปิด + smooth + resample ให้เอง และถูกบันทึกลงซีน
-/// หมายเหตุ: เก็บเป็นพิกัด world จึงไม่ควรขยับ/หมุน GameObject นี้หลังวาดเสร็จ
-/// </summary>
 public class PathDrawer : MonoBehaviour
 {
 	[Header("Authoring (Scene view)")]
-	public float drawPlaneY = 0f;          // ความสูงของระนาบที่ใช้วาด
-	public float minPointDistance = 2f;    // ระยะห่างขั้นต่ำระหว่างจุดตอนลาก
-	public float closeDistance = 8f;       // ปลายเส้นเข้าใกล้จุดเริ่มเท่านี้ = บรรจบ
-	public int minPointsToClose = 25;      // ต้องมีจุดอย่างน้อยเท่านี้ก่อนถึงจะปิดเส้นได้
+	public float drawPlaneY = 0f;         
+	public float minPointDistance = 2f;    
+	public float closeDistance = 8f;      
+	public int minPointsToClose = 25;     
 	[Range(0, 4)] public int smoothIterations = 2;
 	public float resampleSpacing = 2f;
 
@@ -24,7 +18,6 @@ public class PathDrawer : MonoBehaviour
 	public float lineWidth = 1.2f;
 	public float lineHeight = 0.1f;
 
-	// ข้อมูลที่บันทึกในซีน (แก้ผ่านปุ่มใน Inspector)
 	[HideInInspector] public List<Vector3> rawPoints = new List<Vector3>();
 	[HideInInspector] public List<Vector3> savedPoints = new List<Vector3>();
 	[HideInInspector] public float savedSpacing = 2f;
@@ -64,7 +57,7 @@ public class PathDrawer : MonoBehaviour
 			lr.SetPosition(i, savedPoints[i] + Vector3.up * lineHeight);
 	}
 
-	// ---------------- เรียกจาก Editor ----------------
+	// ---------------- Call form Editor ----------------
 	public void ClearPath()
 	{
 		rawPoints.Clear();
@@ -83,7 +76,7 @@ public class PathDrawer : MonoBehaviour
 		closed = true;
 	}
 
-	// ---------------- Gizmos (เห็นเส้นใน Scene view เสมอ) ----------------
+	// ---------------- Gizmos ----------------
 	void OnDrawGizmos()
 	{
 		Gizmos.color = lineColor;
@@ -103,7 +96,6 @@ public class PathDrawer : MonoBehaviour
 		if (loop && n > 2) Gizmos.DrawLine(p[n - 1], p[0]);
 	}
 
-	// ทำมุมให้โค้งมนขึ้น (เส้นปิด)
 	static List<Vector3> Chaikin(List<Vector3> src)
 	{
 		int n = src.Count;
@@ -117,7 +109,6 @@ public class PathDrawer : MonoBehaviour
 		return res;
 	}
 
-	// แบ่งเส้นปิดให้จุดห่างเท่ากันตามความยาวเส้น
 	static List<Vector3> Resample(List<Vector3> src, float spacing, out float step)
 	{
 		int n = src.Count;

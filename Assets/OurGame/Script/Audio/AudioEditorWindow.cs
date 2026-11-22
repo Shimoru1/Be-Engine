@@ -5,17 +5,10 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-/// <summary>
-/// เครื่องมือตัดช่วงไฟล์เสียง (Editor only): Tools > Audio Editor
-///  - ดูคลื่นเสียง, ลากกำหนดช่วง Start/End, ซูมด้วยล้อเมาส์
-///  - ฟังตัวอย่างหลังตัด (รวม fade/gain), snap ที่ zero crossing กันเสียงแตก
-///  - บันทึกเป็นไฟล์ใหม่ หรือเขียนทับไฟล์เดิม (WAV) โดยคง GUID เดิม reference ในซีนไม่หลุด
-/// หมายเหตุ: Load Type ของคลิปต้องเป็น Decompress On Load ถึงจะอ่านข้อมูลเสียงได้
-/// </summary>
 public class AudioEditorWindow : EditorWindow
 {
 	AudioClip clip;
-	float[] samples;               // interleaved
+	float[] samples;              
 	int channels, frequency, totalFrames;
 	string error;
 
@@ -26,7 +19,7 @@ public class AudioEditorWindow : EditorWindow
 	bool snapZero = true;
 	string suffix = "_trim";
 
-	int dragMode;                  // 0 = ไม่ลาก, 1 = Start, 2 = End, 3 = เลือกช่วงใหม่
+	int dragMode;                  
 	float dragAnchor, prevStart, prevEnd;
 
 	AudioClip previewClip;
@@ -58,7 +51,7 @@ public class AudioEditorWindow : EditorWindow
 		Repaint();
 	}
 
-	// ---------------- โหลดคลิป ----------------
+	// ---------------- Load Clip ----------------
 	void LoadClip(AudioClip c)
 	{
 		StopPreview();
@@ -177,7 +170,7 @@ public class AudioEditorWindow : EditorWindow
 			EditorGUILayout.HelpBox("ไฟล์ต้นฉบับไม่ใช่ .wav จึงเขียนทับไม่ได้ ใช้ Save as New WAV แทน", MessageType.None);
 	}
 
-	// ---------------- คลื่นเสียง + ลากเลือกช่วง ----------------
+	// ---------------- Sound Wave & Select ----------------
 	float TimeToX(Rect r, float t) { return r.x + (t - viewStart) / Mathf.Max(0.0001f, viewEnd - viewStart) * r.width; }
 	float XToTime(Rect r, float x) { return viewStart + (x - r.x) / r.width * (viewEnd - viewStart); }
 
@@ -217,7 +210,6 @@ public class AudioEditorWindow : EditorWindow
 				EditorGUI.DrawRect(new Rect(rect.x + x, top, 1f, Mathf.Max(1f, bot - top)), waveColor);
 			}
 
-			// ส่วนนอกช่วงที่เลือก = มืด
 			float sx = TimeToX(rect, startSec), ex = TimeToX(rect, endSec);
 			var dim = new Color(0f, 0f, 0f, 0.55f);
 			float cl = Mathf.Clamp(sx, rect.xMin, rect.xMax);
@@ -225,7 +217,6 @@ public class AudioEditorWindow : EditorWindow
 			EditorGUI.DrawRect(Rect.MinMaxRect(rect.xMin, rect.yMin, cl, rect.yMax), dim);
 			EditorGUI.DrawRect(Rect.MinMaxRect(cr, rect.yMin, rect.xMax, rect.yMax), dim);
 
-			// เส้น Start / End
 			if (sx >= rect.xMin && sx <= rect.xMax)
 			{
 				EditorGUI.DrawRect(new Rect(sx - 1f, rect.y, 2f, rect.height), Color.white);
@@ -237,7 +228,6 @@ public class AudioEditorWindow : EditorWindow
 				EditorGUIUtility.AddCursorRect(new Rect(ex - 5f, rect.y, 10f, rect.height), MouseCursor.ResizeHorizontal);
 			}
 
-			// playhead
 			if (playing)
 			{
 				float t = playFromSec + (float)(EditorApplication.timeSinceStartup - playStartTime);
@@ -246,13 +236,11 @@ public class AudioEditorWindow : EditorWindow
 					EditorGUI.DrawRect(new Rect(px, rect.y, 1f, rect.height), new Color(1f, 0.85f, 0.2f));
 			}
 
-			// เวลาขอบซ้าย/ขวาของมุมมอง
 			GUI.Label(new Rect(rect.x + 4f, rect.yMax - 18f, 120f, 16f), viewStart.ToString("0.000") + " s", EditorStyles.miniLabel);
 			var rs = new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleRight };
 			GUI.Label(new Rect(rect.xMax - 124f, rect.yMax - 18f, 120f, 16f), viewEnd.ToString("0.000") + " s", rs);
 		}
 
-		// ซูมด้วยล้อเมาส์
 		if (ev.type == EventType.ScrollWheel && rect.Contains(ev.mousePosition))
 		{
 			float tm = XToTime(rect, ev.mousePosition.x);
@@ -304,7 +292,7 @@ public class AudioEditorWindow : EditorWindow
 				if (GUIUtility.hotControl == id)
 				{
 					GUIUtility.hotControl = 0;
-					if (endSec - startSec < minLen) { startSec = prevStart; endSec = prevEnd; } // แค่คลิก = ไม่เปลี่ยน
+					if (endSec - startSec < minLen) { startSec = prevStart; endSec = prevEnd; }
 					else if (snapZero) SnapSelection();
 					dragMode = 0;
 					ev.Use();
@@ -314,7 +302,7 @@ public class AudioEditorWindow : EditorWindow
 		}
 	}
 
-	// ---------------- Zero crossing ----------------
+	// ---------------- Zero Crossing ----------------
 	float Mono(int f)
 	{
 		float s = 0f;
@@ -332,7 +320,7 @@ public class AudioEditorWindow : EditorWindow
 	int SnapFrame(int frame)
 	{
 		if (frame <= 0 || frame >= totalFrames) return frame;
-		int range = Mathf.RoundToInt(frequency * 0.02f); // ค้นหา +-20 ms
+		int range = Mathf.RoundToInt(frequency * 0.02f);
 		for (int k = 0; k <= range; k++)
 		{
 			if (IsCross(frame + k)) return frame + k;
@@ -350,7 +338,7 @@ public class AudioEditorWindow : EditorWindow
 		endSec = (float)b / frequency;
 	}
 
-	// ---------------- ประมวลผลช่วงที่เลือก ----------------
+	// ---------------- Process the selected range ----------------
 	float[] BuildTrimmed(out int frames)
 	{
 		int f0 = Mathf.Clamp(Mathf.RoundToInt(startSec * frequency), 0, totalFrames);
@@ -377,7 +365,7 @@ public class AudioEditorWindow : EditorWindow
 		return o;
 	}
 
-	// ---------------- ฟังตัวอย่าง ----------------
+	// ---------------- Preview ----------------
 	static readonly Type audioUtil = typeof(AudioImporter).Assembly.GetType("UnityEditor.AudioUtil");
 
 	static void PlayPreviewClip(AudioClip c)
@@ -385,8 +373,7 @@ public class AudioEditorWindow : EditorWindow
 		StopAllPreview();
 		if (audioUtil == null) return;
 		var args = new[] { typeof(AudioClip), typeof(int), typeof(bool) };
-		var m = audioUtil.GetMethod("PlayPreviewClip", BindingFlags.Static | BindingFlags.Public, null, args, null)
-			 ?? audioUtil.GetMethod("PlayClip", BindingFlags.Static | BindingFlags.Public, null, args, null);
+		var m = audioUtil.GetMethod("PlayPreviewClip", BindingFlags.Static | BindingFlags.Public, null, args, null) ?? audioUtil.GetMethod("PlayClip", BindingFlags.Static | BindingFlags.Public, null, args, null);
 		if (m != null) m.Invoke(null, new object[] { c, 0, false });
 		else Debug.LogWarning("AudioEditor: เวอร์ชัน Unity นี้ไม่มีฟังก์ชัน preview ที่ใช้อยู่");
 	}
@@ -394,8 +381,7 @@ public class AudioEditorWindow : EditorWindow
 	static void StopAllPreview()
 	{
 		if (audioUtil == null) return;
-		var m = audioUtil.GetMethod("StopAllPreviewClips", BindingFlags.Static | BindingFlags.Public)
-			 ?? audioUtil.GetMethod("StopAllClips", BindingFlags.Static | BindingFlags.Public);
+		var m = audioUtil.GetMethod("StopAllPreviewClips", BindingFlags.Static | BindingFlags.Public) ?? audioUtil.GetMethod("StopAllClips", BindingFlags.Static | BindingFlags.Public);
 		if (m != null) m.Invoke(null, null);
 	}
 
@@ -433,7 +419,7 @@ public class AudioEditorWindow : EditorWindow
 		previewClip = null;
 	}
 
-	// ---------------- บันทึก ----------------
+	// ---------------- Save ----------------
 	static string ToFullPath(string assetPath)
 	{
 		return Path.GetFullPath(Path.Combine(Directory.GetParent(Application.dataPath).FullName, assetPath));
@@ -451,7 +437,6 @@ public class AudioEditorWindow : EditorWindow
 		WriteWav(ToFullPath(dst), data, channels, frequency);
 		AssetDatabase.ImportAsset(dst);
 
-		// คัดลอก import settings จากไฟล์เดิม
 		var so = AssetImporter.GetAtPath(src) as AudioImporter;
 		var no = AssetImporter.GetAtPath(dst) as AudioImporter;
 		if (so != null && no != null)
@@ -469,9 +454,7 @@ public class AudioEditorWindow : EditorWindow
 
 	void Overwrite(string src)
 	{
-		if (!EditorUtility.DisplayDialog("เขียนทับไฟล์เดิม",
-			"จะเขียนทับ " + src + "\nGUID เดิมยังอยู่ reference ในซีนไม่หลุด แต่ย้อนกลับไม่ได้ (ไฟล์จะถูกบันทึกเป็น WAV 16-bit)\nแนะนำให้สำรองไฟล์ก่อน",
-			"Overwrite", "Cancel")) return;
+		if (!EditorUtility.DisplayDialog("เขียนทับไฟล์เดิม","จะเขียนทับ " + src + "\nGUID เดิมยังอยู่ reference ในซีนไม่หลุด แต่ย้อนกลับไม่ได้ (ไฟล์จะถูกบันทึกเป็น WAV 16-bit)\nแนะนำให้สำรองไฟล์ก่อน","Overwrite", "Cancel")) return;
 
 		var data = BuildTrimmed(out int frames);
 		if (frames < 1) return;
@@ -494,7 +477,7 @@ public class AudioEditorWindow : EditorWindow
 			w.Write(Encoding.ASCII.GetBytes("WAVE"));
 			w.Write(Encoding.ASCII.GetBytes("fmt "));
 			w.Write(16);
-			w.Write((short)1);                       // PCM
+			w.Write((short)1);                     
 			w.Write((short)channels);
 			w.Write(freq);
 			w.Write(freq * channels * 2);

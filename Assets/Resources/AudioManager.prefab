@@ -48,23 +48,29 @@ MonoBehaviour:
   musicList:
   - id: MainMenu
     clip: {fileID: 8300000, guid: 3c5ba381d2f26e34b87e5b2888ae87d9, type: 3}
-    volume: 0.5
+    volume: 0.7
     loop: 1
-  - id: MainGame
-    clip: {fileID: 8300000, guid: 2566143f17ecf2f4888840401b9e763e, type: 3}
-    volume: 0.3
+  - id: SelectCar
+    clip: {fileID: 8300000, guid: 4aff46c1992ddaa40aeb619e90752b27, type: 3}
+    volume: 0.7
+    loop: 1
+  - id: Race1
+    clip: {fileID: 8300000, guid: 58f72bd4c5d378b4e8c935552a00965b, type: 3}
+    volume: 0.7
     loop: 1
   sfxList: []
   sceneMusics:
   - sceneName: MainMenu
     musicId: MainMenu
   - sceneName: MainGame
-    musicId: MainGame
+    musicId: SelectCar
+  - sceneName: MainGame
+    musicId: Race1
   mainMixer: {fileID: 24100000, guid: c701af65c01552641a59b9dde38b3aeb, type: 2}
   musicGroup: {fileID: 7135946093321715254, guid: c701af65c01552641a59b9dde38b3aeb, type: 2}
   sfxGroup: {fileID: 2952123916749510305, guid: c701af65c01552641a59b9dde38b3aeb, type: 2}
   engineGroup: {fileID: -5017585577707351924, guid: c701af65c01552641a59b9dde38b3aeb, type: 2}
-  musicAudioSource: {fileID: 2447052742646198915}
+  musicAudioSource: {fileID: 0}
   sfxAudioSource: {fileID: 0}
   disableAutoMusic: 0
   car: {fileID: 0}
@@ -73,50 +79,32 @@ MonoBehaviour:
     engineVolume: 1
     enginePitchMin: 0
     enginePitchMax: 1
-    layerClip: {fileID: 0}
-    layerVolume: 0
-    layerPitchMin: 1
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
     engineVolume: 1
     enginePitchMin: 0.4
     enginePitchMax: 1
-    layerClip: {fileID: 0}
-    layerVolume: 0
-    layerPitchMin: 1
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
     engineVolume: 1
     enginePitchMin: 0.4
     enginePitchMax: 1
-    layerClip: {fileID: 8300000, guid: 942117af65786264099c46b5d7750940, type: 3}
-    layerVolume: 0.4
-    layerPitchMin: 0
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
     engineVolume: 1
     enginePitchMin: 0.4
     enginePitchMax: 1
-    layerClip: {fileID: 8300000, guid: 942117af65786264099c46b5d7750940, type: 3}
-    layerVolume: 0.4
-    layerPitchMin: 0.7
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
     engineVolume: 1
     enginePitchMin: 0.4
     enginePitchMax: 1
-    layerClip: {fileID: 8300000, guid: 2f4b14c3049c4034985c28090260299c, type: 3}
-    layerVolume: 0.3
-    layerPitchMin: 1
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
     engineVolume: 1
     enginePitchMin: 0.4
     enginePitchMax: 1
-    layerClip: {fileID: 8300000, guid: 7e9286a88188dbc49ae957a06da36486, type: 3}
-    layerVolume: 0.2
-    layerPitchMin: 1
-    layerPitchMax: 1
+    lowRevVolume: 0.75
   pitchRiseSpeed: 1
   pitchFallSpeed: 0.8
   holdPitchOnRelease: 1
@@ -126,15 +114,6 @@ MonoBehaviour:
   brakePitchFallSpeed: 3
   releaseVolumeFactor: 0.9
   releaseVolumeFadeSpeed: 3
-  brakeClip: {fileID: 8300000, guid: 9a7c2ee609729a84692e26fca9880bbf, type: 3}
-  brakeVolume: 0.403
-  brakeFadeCurve: 0.5
-  brakeMinPitch: 0.1
-  brakeMaxPitch: 1
-  loopBrakeWhileHeld: 1
-  brakePitchSpeed: 1
-  brakeVolumeRiseSpeed: 3
-  brakeReleaseTime: 5
 --- !u!1 &6194698739732063633
 GameObject:
   m_ObjectHideFlags: 0
@@ -178,7 +157,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 3c5ba381d2f26e34b87e5b2888ae87d9, type: 3}
+  m_Resource: {fileID: 0}
   m_PlayOnAwake: 1
   m_Volume: 1
   m_Pitch: 1

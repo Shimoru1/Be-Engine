@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// โซนโค้ง (วางเองในซีน) - ใส่กับ GameObject ที่มี BoxCollider แล้วปรับขนาดให้คลุมโค้ง
-/// ในโซน: S = เบรค, JKL = เร่ง, Space = ลดเกียร์
-/// </summary>
 [RequireComponent(typeof(BoxCollider))]
 public class CornerZone : MonoBehaviour
 {

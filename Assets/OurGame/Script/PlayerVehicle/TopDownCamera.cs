@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// กล้องตามรถแบบไม่แข็ง (SmoothDamp) ปรับมุมได้ตั้งแต่ Top Down (pitch 90) จนถึงมองจากข้างหลังรถ (pitch ~30-45)
-/// ผู้เล่นคือรถ: ถ้าไม่ได้ลาก target จะหา GameObject ที่ติด Tag "Player" ให้เอง
-/// </summary>
 [RequireComponent(typeof(Camera))]
 public class TopDownCamera : MonoBehaviour
 {
@@ -44,20 +40,46 @@ public class TopDownCamera : MonoBehaviour
 	float curYaw, yawVel;
 	bool initialized;
 
+	void OnEnable()
+	{
+		CarSelectUI.PlayerCarSpawned += OnPlayerCarSpawned;
+
+		if (CarSelectUI.SpawnedCar != null) OnPlayerCarSpawned(CarSelectUI.SpawnedCar);
+	}
+
+	void OnDisable()
+	{
+		CarSelectUI.PlayerCarSpawned -= OnPlayerCarSpawned;
+	}
+
+	void OnPlayerCarSpawned(CarController c)
+	{
+		if (c == null) return;
+		SetTarget(c.transform);
+	}
+
+	public void SetTarget(Transform t)
+	{
+		target = t;
+		car = t != null ? t.GetComponent<CarController>() : null;
+		initialized = false; 
+		focusVel = Vector3.zero;
+		distVel = pitchVel = yawVel = 0f;
+	}
+
 	void LateUpdate()
 	{
 		if (target == null)
 		{
 			var go = GameObject.FindGameObjectWithTag("Player");
-			if (go == null) return;
-			target = go.transform;
+			if (go == null) return;    
+			SetTarget(go.transform);
 		}
 		if (car == null) car = target.GetComponent<CarController>();
 
 		float speedKph = car != null ? car.SpeedKph : 0f;
 		float speedT = Mathf.Clamp01(speedKph / Mathf.Max(1f, maxSpeedForEffect));
-		Vector3 flatFwd = car != null ? car.HeadingForward
-									  : Vector3.ProjectOnPlane(target.forward, Vector3.up).normalized;
+		Vector3 flatFwd = car != null ? car.HeadingForward : Vector3.ProjectOnPlane(target.forward, Vector3.up).normalized;
 
 		float targetYaw = rotateWithCar ? Mathf.Atan2(flatFwd.x, flatFwd.z) * Mathf.Rad2Deg : fixedYaw;
 		float targetPitch = Mathf.Clamp(pitch + speedPitchChange * speedT, 10f, 90f);

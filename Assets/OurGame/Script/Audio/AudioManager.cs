@@ -10,6 +10,10 @@ public class AudioManager : MonoBehaviour
 {
 	public static AudioManager Instance { get; private set; }
 
+	AudioSource enginePreviewSource;
+	Coroutine enginePreviewRoutine;
+	bool musicPausedByPreview;
+
 	// ===== PlayerPrefs / Mixer keys =====
 	private const string MasterKey = "MasterVolume";
 	private const string MusicKey = "MusicVolume";
@@ -21,8 +25,6 @@ public class AudioManager : MonoBehaviour
 	private const string SFXParam = "SFXVolume";
 	private const string EngineParam = "EngineVolume";
 
-	// เปิดเป็น true ถ้าอยากให้สร้าง AudioManager จาก Resources/AudioManager.prefab อัตโนมัติ
-	// (ถ้าวาง AudioManager ไว้ในซีนอยู่แล้ว ให้ปิดไว้ ไม่งั้นอาจซ้ำ)
 	private const bool UseBootstrap = true;
 
 	private float masterVolume = 1f;
@@ -55,14 +57,11 @@ public class AudioManager : MonoBehaviour
 		[Header("Engine (เสียงรถปกติ)")]
 		public AudioClip engineClip;
 		[Range(0f, 1f)] public float engineVolume = 1f;
-		public float enginePitchMin = 0.8f;
-		public float enginePitchMax = 1.6f;
-
-		[Header("Layer (เสียงซ้อน - ใช้กับเกียร์ 4,5,6)")]
-		public AudioClip layerClip;
-		[Range(0f, 1f)] public float layerVolume = 0.7f;
-		public float layerPitchMin = 0.9f;
-		public float layerPitchMax = 1.5f;
+		[Tooltip("1 = ตรงไฟล์ ช่วงแคบ เช่น 0.95 ถึง 1.1 จะไม่เพี้ยน")]
+		public float enginePitchMin = 0.95f;
+		public float enginePitchMax = 1.1f;
+		[Tooltip("ความดังตอนรอบต่ำ เทียบกับรอบสูง (1 = ไม่เปลี่ยน) เช่น 0.75")]
+		[Range(0.3f, 1f)] public float lowRevVolume = 0.75f;
 	}
 
 	// ==============================
@@ -97,7 +96,7 @@ public class AudioManager : MonoBehaviour
 	[Header("Car")]
 	public CarController car;
 
-	[Tooltip("ช่อง 0 = เกียร์ 1 ... ช่อง 5 = เกียร์ 6")]
+	[Tooltip("ชุดเสียง default (ใช้เมื่อรถไม่มี Sound Set) ช่อง 0 = เกียร์ 1 ... ช่อง 5 = เกียร์ 6")]
 	public GearSound[] gearSounds = new GearSound[6];
 
 	[Header("Pitch behaviour")]
@@ -121,42 +120,20 @@ public class AudioManager : MonoBehaviour
 	[Tooltip("ความเร็วที่ความดังเปลี่ยน (หน่วย 0-1 ต่อวินาที) ยิ่งมากยิ่งเปลี่ยนเร็ว")]
 	public float releaseVolumeFadeSpeed = 3f;
 
-	[Header("Brake")]
-	public AudioClip brakeClip;
-	[Range(0f, 1f)] public float brakeVolume = 1f;
-	[Tooltip("ยิ่งมาก เสียงเบรคยิ่งเบาลงเร็วเมื่อความเร็วลด (1 = ลดเป็นเส้นตรง)")]
-	public float brakeFadeCurve = 2f;
-	[Tooltip("pitch ของเสียงเบรคตอนความเร็วใกล้ 0")]
-	[Range(0.1f, 1f)] public float brakeMinPitch = 0.6f;
-	[Tooltip("pitch ของเสียงเบรคตอนความเร็วสูงสุดนับจากเริ่มเบรค")]
-	[Range(0.5f, 3f)] public float brakeMaxPitch = 1.3f;
-	[Tooltip("วนลูปคลิปเบรคตอนกด S ค้าง")]
-	public bool loopBrakeWhileHeld = true;
-	[Tooltip("ความเร็วที่ pitch เสียงเบรคเคลื่อนเข้าหาค่าตามความเร็วรถ (pitch ต่อวินาที)")]
-	public float brakePitchSpeed = 3f;
-	[Tooltip("ความเร็วที่ความดังเสียงเบรคเพิ่มขึ้น (ความดัง 0-1 ต่อวินาที)")]
-	public float brakeVolumeRiseSpeed = 6f;
-
-	[Header("Brake release (เร่งระหว่างเบรค)")]
-	[Tooltip("เวลาที่เสียงเบรคใช้จางหายตอนเร่ง (วินาที)")]
-	public float brakeReleaseTime = 0.8f;
-
 	// ==============================
 	// Internals
 	// ==============================
 	AudioSource[] engine;
-	AudioSource[] layer;
-	AudioSource brake;
 	AudioSource repairingAudioSource;
 
 	CarController boundCar;
 	float pitchT;
 	float heldTime;
-	float brakeRefSpeed = 1f;
-	bool brakeFading;
 	float volumeMul = 1f;
-	bool layerAllowed;
 	bool warming;
+	bool silenced;
+
+	GearSound[] activeGearSounds;
 
 	string currentSFXId;
 	string currentRepairingSFXId;
@@ -199,7 +176,6 @@ public class AudioManager : MonoBehaviour
 		ApplyOutputGroups();
 		ApplyVolumes();
 
-		StartCoroutine(WarmUp());
 		BindCar();
 
 		if (disableAutoMusic)
@@ -216,6 +192,85 @@ public class AudioManager : MonoBehaviour
 
 		if (Instance == this)
 			Instance = null;
+	}
+
+	// ==============================
+	// per-frame (เสียงรถ)
+	// ==============================
+	void Update()
+	{
+		if (Instance != this || warming || engine == null || activeGearSounds == null) return;
+
+		if (car == null)
+		{
+			if (!silenced) StopVehicleSounds();
+			return;
+		}
+		float dt = Time.deltaTime;
+		float speed = car.SpeedKph;
+		bool tapping = car.TimeSinceLastPress <= car.idleDelay;
+		bool audible = car.Started && (speed > 0.5f || tapping);
+
+		float volGoal = tapping ? 1f : releaseVolumeFactor;
+		volumeMul = Mathf.MoveTowards(volumeMul, volGoal, releaseVolumeFadeSpeed * dt);
+
+		float target = TargetRatio();
+		if (tapping)
+		{
+			heldTime = 0f;
+			pitchT = Mathf.MoveTowards(pitchT, target, pitchRiseSpeed * dt);
+		}
+		else if (car.BrakeHeld)
+		{
+			pitchT = Mathf.MoveTowards(pitchT, Mathf.Min(target, pitchT), brakePitchFallSpeed * dt);
+		}
+		else
+		{
+			heldTime += dt;
+			if (!holdPitchOnRelease || heldTime > releaseHoldTime)
+			{
+				float goal = Mathf.Min(target * coastPitchFactor, pitchT);
+				pitchT = Mathf.MoveTowards(pitchT, goal, pitchFallSpeed * dt);
+			}
+		}
+
+		int g = car.GearIndex;
+		for (int i = 0; i < engine.Length && i < activeGearSounds.Length; i++)
+		{
+			var gs = activeGearSounds[i];
+			if (gs == null) continue;
+			bool active = audible && i == g;
+
+			float revVol = Mathf.Lerp(gs.lowRevVolume, 1f, pitchT);
+
+			UpdateSource(engine[i], active, gs.engineVolume * volumeMul * revVol, gs.enginePitchMin, gs.enginePitchMax, dt);
+		}
+	}
+
+	void UpdateSource(AudioSource s, bool active, float vol, float pMin, float pMax, float dt)
+	{
+		if (s == null) return;
+		if (active && !s.isPlaying) s.Play();
+
+		float tv = active ? vol : 0f;
+		float step = gearFadeTime <= 0.0001f ? 1f : dt / gearFadeTime;
+		s.volume = Mathf.MoveTowards(s.volume, tv, step);
+
+		if (active) s.pitch = Mathf.Lerp(pMin, pMax, pitchT);
+		if (!active && s.isPlaying && s.volume <= 0.001f) s.Stop();
+	}
+
+	IEnumerator WarmUp()
+	{
+		if (engine == null) yield break;
+
+		var e = engine;
+
+		warming = true;
+		foreach (var s in e) if (s != null) s.Play();  
+		yield return null;
+		foreach (var s in e) if (s != null) s.Stop();
+		warming = false;
 	}
 
 	// ==============================
@@ -246,7 +301,6 @@ public class AudioManager : MonoBehaviour
 	{
 		if (mainMixer != null)
 		{
-			// ใช้ Mixer คุมเสียง Master อย่างเดียว ไม่ซ้อนกับ AudioListener
 			AudioListener.volume = 1f;
 			SetMixerVolume(MasterParam, masterVolume);
 			SetMixerVolume(MusicParam, musicVolume);
@@ -255,7 +309,6 @@ public class AudioManager : MonoBehaviour
 		}
 		else
 		{
-			// ไม่มี Mixer = Master คุมผ่าน AudioListener
 			AudioListener.volume = masterVolume;
 		}
 	}
@@ -268,6 +321,9 @@ public class AudioManager : MonoBehaviour
 			sfxAudioSource.outputAudioMixerGroup = sfxGroup;
 		if (repairingAudioSource != null && sfxGroup != null)
 			repairingAudioSource.outputAudioMixerGroup = sfxGroup;
+		var eg = engineGroup != null ? engineGroup : sfxGroup;
+		if (enginePreviewSource != null && eg != null)
+			enginePreviewSource.outputAudioMixerGroup = eg;
 	}
 
 	public void SetMasterVolume(float value)
@@ -320,7 +376,6 @@ public class AudioManager : MonoBehaviour
 	// ==============================
 	private void EnsurePersistentAudioSources()
 	{
-		// เสียงรถอยู่ใน child object จึงไม่ปนกับ GetComponents ตรงนี้
 		AudioSource[] sources = GetComponents<AudioSource>();
 		int idx = 0;
 
@@ -345,25 +400,40 @@ public class AudioManager : MonoBehaviour
 		repairingAudioSource.spatialBlend = 0f;
 		repairingAudioSource.loop = true;
 
+		enginePreviewSource = gameObject.AddComponent<AudioSource>();
+		enginePreviewSource.playOnAwake = false;
+		enginePreviewSource.spatialBlend = 0f;
+		enginePreviewSource.loop = true;
+
 		ApplyOutputGroups();
 	}
 
 	private void BuildVehicleSources()
 	{
-		int n = gearSounds != null ? gearSounds.Length : 0;
+		BuildSourcesFor(gearSounds);
+	}
 
+	private void BuildSourcesFor(GearSound[] sounds)
+	{
+		DestroyVehicleSources();
+
+		int n = sounds != null ? sounds.Length : 0;
 		engine = new AudioSource[n];
-		layer = new AudioSource[n];
 
 		for (int i = 0; i < n; i++)
 		{
-			if (gearSounds[i] == null) continue;
-
-			engine[i] = MakeSource("Engine G" + (i + 1), gearSounds[i].engineClip, true);
-			layer[i] = MakeSource("Layer G" + (i + 1), gearSounds[i].layerClip, true);
+			if (sounds[i] == null) continue;
+			engine[i] = MakeSource("Engine G" + (i + 1), sounds[i].engineClip, true);
 		}
 
-		brake = MakeSource("Brake", brakeClip, false);
+		activeGearSounds = sounds;
+	}
+
+	private void DestroyVehicleSources()
+	{
+		if (engine != null)
+			foreach (var s in engine) if (s != null) Destroy(s.gameObject);
+		engine = null;
 	}
 
 	AudioSource MakeSource(string name, AudioClip clip, bool loop)
@@ -378,8 +448,9 @@ public class AudioManager : MonoBehaviour
 		s.playOnAwake = false;
 		s.spatialBlend = 0f;
 		s.volume = 0f;
+
 		var grp = engineGroup != null ? engineGroup : sfxGroup;
-		if (grp != null) s.outputAudioMixerGroup = grp;   // เสียงรถเข้า SFX Group
+		if (grp != null) s.outputAudioMixerGroup = grp;
 		return s;
 	}
 
@@ -407,7 +478,6 @@ public class AudioManager : MonoBehaviour
 
 		if (match == null || string.IsNullOrWhiteSpace(match.musicId))
 		{
-			// หยุดเฉพาะเพลงที่เล่นผ่าน ID (เพลงจาก PlayBGM(AudioClip) ไม่ถูกตัด)
 			if (currentMusicId != null) StopMusic();
 			return;
 		}
@@ -437,10 +507,7 @@ public class AudioManager : MonoBehaviour
 			return;
 		}
 
-		if (currentMusicId == sound.id &&
-			musicAudioSource.clip == sound.clip &&
-			musicAudioSource.isPlaying)
-			return;
+		if (currentMusicId == sound.id && musicAudioSource.clip == sound.clip && musicAudioSource.isPlaying) return;
 
 		musicAudioSource.Stop();
 
@@ -452,7 +519,6 @@ public class AudioManager : MonoBehaviour
 		musicAudioSource.Play();
 	}
 
-	// เข้ากันได้กับโค้ดเดิม: เล่นเพลงด้วย AudioClip ตรงๆ
 	public void PlayBGM(AudioClip clip)
 	{
 		if (clip == null || musicAudioSource == null) return;
@@ -476,6 +542,27 @@ public class AudioManager : MonoBehaviour
 		currentMusicId = null;
 	}
 
+	public void SilenceAllForSceneChange()
+	{
+		if (musicAudioSource != null)
+		{
+			musicAudioSource.volume = 0f;
+			musicAudioSource.Stop();
+			musicAudioSource.clip = null;
+		}
+		currentMusicId = null;
+
+		if (repairingAudioSource != null)
+		{
+			repairingAudioSource.volume = 0f;
+			repairingAudioSource.Stop();
+			repairingAudioSource.clip = null;
+		}
+		currentRepairingSFXId = null;
+
+		StopEnginePreview();
+	}
+
 	public void PauseMusic()
 	{
 		if (musicAudioSource != null && musicAudioSource.isPlaying)
@@ -486,6 +573,64 @@ public class AudioManager : MonoBehaviour
 	{
 		if (musicAudioSource != null && musicAudioSource.clip != null)
 			musicAudioSource.UnPause();
+	}
+
+	public void PlayEnginePreview(AudioClip clip, float pitchMin, float pitchMax, float duration = 3f)
+	{
+		if (clip == null || enginePreviewSource == null) return;
+		StopEnginePreview();
+
+		if (musicAudioSource != null && musicAudioSource.isPlaying)
+		{
+			musicAudioSource.Pause();
+			musicPausedByPreview = true;
+		}
+
+		enginePreviewRoutine = StartCoroutine(EnginePreviewRoutine(clip, pitchMin, pitchMax, duration));
+	}
+
+	public void StopEnginePreview()
+	{
+		if (enginePreviewRoutine != null)
+		{
+			StopCoroutine(enginePreviewRoutine);
+			enginePreviewRoutine = null;
+		}
+		if (enginePreviewSource != null) enginePreviewSource.Stop();
+
+		if (musicPausedByPreview)
+		{
+			musicPausedByPreview = false;
+			if (musicAudioSource != null && musicAudioSource.clip != null)
+				musicAudioSource.UnPause();
+		}
+	}
+
+	IEnumerator EnginePreviewRoutine(AudioClip clip, float pMin, float pMax, float sweepSeconds)
+	{
+		var s = enginePreviewSource;
+		s.clip = clip;
+		s.loop = false;
+		s.pitch = pMin;
+		s.volume = 1f;
+		s.time = 0f;
+		s.Play();
+
+		const float fade = 0.4f;
+		float sweep = Mathf.Max(0.5f, Mathf.Min(sweepSeconds, clip.length));
+
+		while (s.isPlaying)
+		{
+			float k = Mathf.Clamp01(s.time / sweep);
+			s.pitch = Mathf.Lerp(pMin, pMax, k);
+
+			float left = clip.length - s.time;
+			s.volume = left < fade ? Mathf.Clamp01(left / fade) : 1f;
+			yield return null;
+		}
+
+		enginePreviewRoutine = null;
+		StopEnginePreview();
 	}
 
 	public IEnumerator FadeOutMusic(float duration)
@@ -518,7 +663,7 @@ public class AudioManager : MonoBehaviour
 		Sound sound = FindSFX(id);
 		if (sound == null || sound.clip == null)
 		{
-			Debug.LogWarning($"[AudioManager] SFX not found: {id}");
+			//Debug.LogWarning($"[AudioManager] SFX not found: {id}");
 			return;
 		}
 
@@ -527,7 +672,6 @@ public class AudioManager : MonoBehaviour
 		sfxAudioSource.PlayOneShot(sound.clip, Mathf.Clamp01(sound.volume));
 	}
 
-	// เข้ากันได้กับโค้ดเดิม: เล่น SFX ด้วย AudioClip ตรงๆ
 	public void PlaySFX(AudioClip clip)
 	{
 		if (clip == null || sfxAudioSource == null) return;
@@ -620,7 +764,6 @@ public class AudioManager : MonoBehaviour
 
 	private IEnumerator RefreshAfterSceneLoad(Scene scene)
 	{
-		// รอให้ Awake/Start ของวัตถุในซีนใหม่เสร็จก่อน (รถ Player ถูกสร้างแล้ว)
 		yield return null;
 
 		if (Instance != this) yield break;
@@ -640,6 +783,12 @@ public class AudioManager : MonoBehaviour
 	// ==============================
 	// Car binding
 	// ==============================
+
+	public void RefreshCar()
+	{
+		BindCar();
+	}
+
 	private void BindCar()
 	{
 		CarController newCar = null;
@@ -647,7 +796,6 @@ public class AudioManager : MonoBehaviour
 		GameObject go = GameObject.FindGameObjectWithTag("Player");
 		if (go != null) newCar = go.GetComponent<CarController>();
 
-		// ไม่เจอรถที่ติดแท็ก Player = ใช้ตัวที่ลากใส่ไว้ใน Inspector (ถ้ายังอยู่)
 		if (newCar == null && car != null) newCar = car;
 
 		if (newCar == boundCar && newCar != null) return;
@@ -659,8 +807,9 @@ public class AudioManager : MonoBehaviour
 
 		if (car != null)
 		{
-			car.BrakeStarted += OnBrakeStarted;
+			ApplySoundSet(car.soundSet);
 			car.GearChanged += OnGearChanged;
+			silenced = false;
 		}
 		else
 		{
@@ -669,66 +818,50 @@ public class AudioManager : MonoBehaviour
 
 		pitchT = 0f;
 		heldTime = 0f;
-		brakeFading = false;
 	}
 
 	private void UnbindCar()
 	{
 		if (boundCar != null)
-		{
-			boundCar.BrakeStarted -= OnBrakeStarted;
 			boundCar.GearChanged -= OnGearChanged;
-		}
 		boundCar = null;
 	}
 
-	private void StopVehicleSounds()
+	private void ApplySoundSet(CarSoundSet set)
+	{
+		if (set != null)
+			BuildSourcesFor(set.gearSounds);
+		else
+			BuildSourcesFor(gearSounds);  
+
+		StartCoroutine(WarmUp());
+	}
+
+	public void StopVehicleSounds()
 	{
 		if (engine != null)
-			foreach (var s in engine) if (s != null) { s.Stop(); s.volume = 0f; }
-		if (layer != null)
-			foreach (var s in layer) if (s != null) { s.Stop(); s.volume = 0f; }
-		if (brake != null) { brake.loop = false; brake.Stop(); brake.volume = 0f; }
+			foreach (var s in engine)
+				if (s != null) { s.volume = 0f; s.Stop(); }
+		silenced = true;
+	}
+
+	public void DetachCar()
+	{
+		StopVehicleSounds();
+		UnbindCar();
+		car = null;
+		pitchT = 0f;
+		heldTime = 0f;
 	}
 
 	// ==============================
 	// events จากรถ
 	// ==============================
-	void OnBrakeStarted()
-	{
-		if (brake == null) return;
-		brakeFading = false;
-
-		// เสียงเบรคยังเล่นอยู่ (รวมช่วงกำลังจาง) = เล่นต่อจาก pitch/ความดังปัจจุบัน ไม่เริ่มใหม่
-		if (brake.isPlaying)
-		{
-			brake.loop = loopBrakeWhileHeld;
-			return;
-		}
-
-		// เริ่มใหม่จริงๆ (เสียงจบไปแล้ว)
-		brakeRefSpeed = Mathf.Max(1f, car.SpeedKph);
-		brake.loop = loopBrakeWhileHeld;
-		brake.time = 0f;
-		brake.pitch = brakeMaxPitch;
-		brake.volume = brakeVolume;
-		brake.Play();
-	}
-
 	void OnGearChanged(int oldGear, int newGear)
 	{
-		layerAllowed = newGear > oldGear;
-		if (newGear > oldGear)
-		{
-			heldTime = 0f;
-			pitchT = TargetRatio();                 // ขึ้นเกียร์: เริ่มที่ระดับตามความเร็ว
-		}
-		else
-		{
-			// ลดเกียร์: pitch = ratio ของเกียร์ใหม่ทันที แล้วลดลงตามความเร็วต่อเลย (ไม่รอ hold)
-			pitchT = TargetRatio();
-			heldTime = releaseHoldTime + 1f;
-		}
+		pitchT = TargetRatio();
+		if (newGear > oldGear) heldTime = 0f;
+		else heldTime = releaseHoldTime + 1f;
 	}
 
 	float TargetRatio()
@@ -737,121 +870,7 @@ public class AudioManager : MonoBehaviour
 	}
 
 	// ==============================
-	// per-frame (เสียงรถ)
-	// ==============================
-	void Update()
-	{
-		if (Instance != this || car == null || warming) return;
-		float dt = Time.deltaTime;
-		float speed = car.SpeedKph;
-		bool tapping = car.TimeSinceLastPress <= car.idleDelay;
-		bool audible = car.Started && (speed > 0.5f || tapping);
-
-		// ความดังเสียงเครื่อง: กดเร่ง = เต็ม / ปล่อย = เบาลงตาม releaseVolumeFactor
-		float volGoal = tapping ? 1f : releaseVolumeFactor;
-		volumeMul = Mathf.MoveTowards(volumeMul, volGoal, releaseVolumeFadeSpeed * dt);
-
-		float target = TargetRatio();
-		if (tapping)
-		{
-			heldTime = 0f;
-			pitchT = Mathf.MoveTowards(pitchT, target, pitchRiseSpeed * dt);
-		}
-		else if (car.BrakeHeld)
-		{
-			pitchT = Mathf.MoveTowards(pitchT, Mathf.Min(target, pitchT), brakePitchFallSpeed * dt);
-		}
-		else
-		{
-			heldTime += dt;
-			if (!holdPitchOnRelease || heldTime > releaseHoldTime)
-			{
-				float goal = Mathf.Min(target * coastPitchFactor, pitchT);
-				pitchT = Mathf.MoveTowards(pitchT, goal, pitchFallSpeed * dt);
-			}
-		}
-
-		// เสียงเบรค: pitch ตามความเร็วจริงต่อเนื่อง (เบรคลด / เร่งเพิ่ม) ไม่รีเซ็ต
-		if (brake != null && brake.isPlaying)
-		{
-			if (speed < 0.5f)
-			{
-				brake.loop = false;
-				brake.Stop();
-			}
-			else
-			{
-				brakeRefSpeed = Mathf.Max(brakeRefSpeed, speed);
-				float r = Mathf.Clamp01(speed / brakeRefSpeed);
-
-				float targetPitch = Mathf.Lerp(brakeMinPitch, brakeMaxPitch, r);
-				brake.pitch = Mathf.MoveTowards(brake.pitch, targetPitch, brakePitchSpeed * dt);
-
-				float full = brakeVolume;
-
-				// เริ่มจางเมื่อเร่ง และค้างสถานะไว้จนกว่าจะกดเบรคใหม่
-				if (tapping && !car.BrakeHeld) brakeFading = true;
-				if (car.BrakeHeld) brakeFading = false;
-
-				if (brakeFading)
-				{
-					brake.loop = false;
-					float fadeStep = full / Mathf.Max(0.05f, brakeReleaseTime) * dt;
-					brake.volume = Mathf.MoveTowards(brake.volume, 0f, fadeStep);
-					if (brake.volume <= 0.001f)
-					{
-						brake.Stop();
-						brakeFading = false;
-					}
-				}
-				else
-				{
-					brake.loop = loopBrakeWhileHeld && car.BrakeHeld;
-					float tv = full * Mathf.Pow(r, brakeFadeCurve);
-					brake.volume = Mathf.MoveTowards(brake.volume, tv, brakeVolumeRiseSpeed * dt);
-				}
-			}
-		}
-
-		int g = car.GearIndex;
-		for (int i = 0; i < engine.Length; i++)
-		{
-			var gs = gearSounds[i];
-			if (gs == null) continue;
-			bool active = audible && i == g;
-			UpdateSource(engine[i], active, gs.engineVolume * volumeMul, gs.enginePitchMin, gs.enginePitchMax, dt);
-			UpdateSource(layer[i], active && layerAllowed, gs.layerVolume, gs.layerPitchMin, gs.layerPitchMax, dt);
-		}
-	}
-
-	void UpdateSource(AudioSource s, bool active, float vol, float pMin, float pMax, float dt)
-	{
-		if (s == null) return;
-		if (active && !s.isPlaying) s.Play();
-
-		float tv = active ? vol : 0f;
-		float step = gearFadeTime <= 0.0001f ? 1f : dt / gearFadeTime;
-		s.volume = Mathf.MoveTowards(s.volume, tv, step);
-
-		if (active) s.pitch = Mathf.Lerp(pMin, pMax, pitchT);
-		if (!active && s.isPlaying && s.volume <= 0.001f) s.Stop();
-	}
-
-	IEnumerator WarmUp()
-	{
-		warming = true;
-		foreach (var s in engine) if (s != null) s.Play();
-		foreach (var s in layer) if (s != null) s.Play();
-		if (brake != null) brake.Play();      // volume ตั้งต้นเป็น 0 อยู่แล้ว
-		yield return null;
-		foreach (var s in engine) if (s != null) s.Stop();
-		foreach (var s in layer) if (s != null) s.Stop();
-		if (brake != null) brake.Stop();
-		warming = false;
-	}
-
-	// ==============================
-	// Bootstrap (ปิดไว้เป็นค่าเริ่มต้น)
+	// Bootstrap
 	// ==============================
 	[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 	private static void BootstrapAudioManager()

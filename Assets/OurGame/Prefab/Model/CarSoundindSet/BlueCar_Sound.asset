@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05263bcef1ac6444a9f51c0a4f751ad6, type: 3}
+  m_Name: BlueCar_Sound
+  m_EditorClassIdentifier: Assembly-CSharp::CarSoundSet
+  gearSounds:
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0
+    enginePitchMax: 1
+    layerClip: {fileID: 0}
+    layerVolume: 0
+    layerPitchMin: 1
+    layerPitchMax: 1
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    layerClip: {fileID: 0}
+    layerVolume: 0
+    layerPitchMin: 1
+    layerPitchMax: 1
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    layerClip: {fileID: 8300000, guid: 942117af65786264099c46b5d7750940, type: 3}
+    layerVolume: 0
+    layerPitchMin: 0
+    layerPitchMax: 1
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    layerClip: {fileID: 8300000, guid: 942117af65786264099c46b5d7750940, type: 3}
+    layerVolume: 0
+    layerPitchMin: 0.7
+    layerPitchMax: 1
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    layerClip: {fileID: 8300000, guid: 2f4b14c3049c4034985c28090260299c, type: 3}
+    layerVolume: 0
+    layerPitchMin: 1
+    layerPitchMax: 1
+  - engineClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+    engineVolume: 1
+    enginePitchMin: 0.4
+    enginePitchMax: 1
+    layerClip: {fileID: 8300000, guid: 7e9286a88188dbc49ae957a06da36486, type: 3}
+    layerVolume: 0
+    layerPitchMin: 1
+    layerPitchMax: 1
+  brakeClip: {fileID: 8300000, guid: 9a7c2ee609729a84692e26fca9880bbf, type: 3}
+  brakeVolume: 0
+  previewClip: {fileID: 8300000, guid: d0da0dcbcd7028a4b83729872ac85ecd, type: 3}
+  previewPitchMin: 1
+  previewPitchMax: 1

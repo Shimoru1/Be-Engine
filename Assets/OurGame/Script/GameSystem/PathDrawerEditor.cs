@@ -2,9 +2,6 @@
 using UnityEditor;
 using UnityEngine;
 
-/// <summary>
-/// ต้องอยู่ในโฟลเดอร์ชื่อ "Editor" - เพิ่มปุ่มวาดเส้นแบบอิสระใน Scene view ให้ PathDrawer
-/// </summary>
 [CustomEditor(typeof(PathDrawer))]
 public class PathDrawerEditor : Editor
 {
@@ -16,11 +13,7 @@ public class PathDrawerEditor : Editor
         var pd = (PathDrawer)target;
 
         EditorGUILayout.Space();
-        EditorGUILayout.HelpBox(
-            drawing
-                ? "กำลังวาด: กดซ้ายค้างแล้วลากใน Scene view จนปลายเส้นกลับมาชนจุดเริ่ม (วงกลมเขียว) เส้นจะปิดเอง\n(ถ้าต้องการหมุนมุมมอง ให้กด Alt ค้างไว้)"
-                : "กด Start Drawing เพื่อวาดเส้นทางใหม่ (เส้นเดิมจะถูกล้าง)",
-            MessageType.Info);
+        EditorGUILayout.HelpBox(drawing ? "กำลังวาด: กดซ้ายค้างแล้วลากใน Scene view จนปลายเส้นกลับมาชนจุดเริ่ม (วงกลมเขียว) เส้นจะปิดเอง\n(ถ้าต้องการหมุนมุมมอง ให้กด Alt ค้างไว้)" : "กด Start Drawing เพื่อวาดเส้นทางใหม่ (เส้นเดิมจะถูกล้าง)", MessageType.Info);
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -53,9 +46,7 @@ public class PathDrawerEditor : Editor
             }
         }
 
-        EditorGUILayout.LabelField("Raw points: " + pd.rawPoints.Count +
-                                   "   Final points: " + pd.savedPoints.Count +
-                                   "   Closed: " + pd.IsClosed);
+        EditorGUILayout.LabelField("Raw points: " + pd.rawPoints.Count + "   Final points: " + pd.savedPoints.Count + "   Closed: " + pd.IsClosed);
     }
 
     void OnSceneGUI()

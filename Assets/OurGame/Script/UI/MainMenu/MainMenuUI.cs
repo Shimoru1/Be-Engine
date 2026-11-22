@@ -33,7 +33,6 @@ public class MainMenuUI : MonoBehaviour
 		if (Bg != null) Bg.gameObject.SetActive(false);
 	}
 
-	// ---------------- ปุ่มเมนูหลัก ----------------
 	public void ShowButtons()
 	{
 		ShowButtonsImmediately();
@@ -60,7 +59,6 @@ public class MainMenuUI : MonoBehaviour
 		PlayButtonSound();
 	}
 
-	// ผูกกับปุ่ม Play
 	public void Play()
 	{
 		if (isLoading)

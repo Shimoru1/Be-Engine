@@ -3399,7 +3399,7 @@ MonoBehaviour:
   setting: {fileID: 1576196778}
   quit: {fileID: 10174251}
   buttonsShown: 0
-  menuMusic: {fileID: 2059311163}
+  menuMusic: {fileID: 0}
   buttonClickAudio: {fileID: 0}
   gameSceneName: MainGame
 --- !u!4 &1465077033
@@ -4249,11 +4249,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2003925046}
   m_CullTransparentMesh: 1
---- !u!82 &2059311163 stripped
-AudioSource:
-  m_CorrespondingSourceObject: {fileID: 2447052742646198915, guid: dd18a54434457734a81609f4fab36de2, type: 3}
-  m_PrefabInstance: {fileID: 3066052236423914748}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3066052236423914748
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4262,6 +4257,58 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicAudioSource
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: sceneMusics.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[1].id
+      value: SelectCar
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[2].id
+      value: Race1
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[1].clip
+      value: 
+      objectReference: {fileID: 8300000, guid: 4aff46c1992ddaa40aeb619e90752b27, type: 3}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[2].clip
+      value: 
+      objectReference: {fileID: 8300000, guid: 58f72bd4c5d378b4e8c935552a00965b, type: 3}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[2].loop
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[0].volume
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: musicList.Array.data[2].volume
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: sceneMusics.Array.data[1].musicId
+      value: SelectCar
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: sceneMusics.Array.data[2].musicId
+      value: Race1
+      objectReference: {fileID: 0}
+    - target: {fileID: 635403013259973952, guid: dd18a54434457734a81609f4fab36de2, type: 3}
+      propertyPath: sceneMusics.Array.data[2].sceneName
+      value: MainGame
+      objectReference: {fileID: 0}
     - target: {fileID: 3319105328770020992, guid: dd18a54434457734a81609f4fab36de2, type: 3}
       propertyPath: m_Name
       value: AudioManager
@@ -4307,7 +4354,8 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 6194698739732063633, guid: dd18a54434457734a81609f4fab36de2, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: dd18a54434457734a81609f4fab36de2, type: 3}

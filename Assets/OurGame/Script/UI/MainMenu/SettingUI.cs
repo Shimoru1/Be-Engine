@@ -80,11 +80,9 @@ public class SettingUI : MonoBehaviour
 
 	public void CloseSettings()
 	{
-		// ปิดหน้า Settings
 		if (settingsPanel != null)
 			settingsPanel.SetActive(false);
 
-		// กลับไปหน้า Pause Menu
 		if (pausePanel != null)
 			pausePanel.SetActive(true);
 	}
