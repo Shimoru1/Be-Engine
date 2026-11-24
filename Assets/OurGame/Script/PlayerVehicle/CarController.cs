@@ -20,6 +20,8 @@ public class CarController : MonoBehaviour
 
 	[Header("Audio")]
 	public CarSoundSet soundSet;
+	[Tooltip("ตัวคูณแรงเร่งต่อการกด 1 ครั้ง (CarSelectUI ตั้งให้ตามปุ่ม Easy)")]
+	public float accelBoost = 1f;
 	[Header("Respawn (Reset Zone)")]
 	[Tooltip("รถอยู่ห่างเส้นทางไม่เกินระยะนี้ถือว่าอยู่บนเส้น และบันทึกเป็นจุดปลอดภัยล่าสุด")]
 	public float onPathDistance = 6f;
@@ -286,7 +288,7 @@ public class CarController : MonoBehaviour
 		{
 			lastPressTime = Time.time;
 			for (int i = 0; i < presses; i++) pressTimes.Enqueue(Time.time);
-			float add = presses * kphPerPress * g.accelMultiplier * (inZone ? zoneAccelMultiplier : 1f);
+			float add = presses * kphPerPress * g.accelMultiplier * (inZone ? zoneAccelMultiplier : 1f) * accelBoost;
 			speed = Mathf.Min(speed + add, Mathf.Max(cap, speed));
 			reverseSpeed = 0f;                                    
 			shiftLocked = false;                                    

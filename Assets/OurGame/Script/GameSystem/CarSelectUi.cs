@@ -40,6 +40,12 @@ public class CarSelectUI : MonoBehaviour
 
 	[Header("Engine preview")]
 	public float enginePreviewSeconds = 3f;
+	[Header("Easy mode")]
+	public float easyMultiplier = 2f;
+	public Color easyOffColor = new Color(0.35f, 0.35f, 0.4f, 1f);
+	public Color easyOnColor = new Color(1f, 0.6f, 0.1f, 1f);
+	public Vector2 easyButtonSize = new Vector2(340f, 70f);
+	public Vector2 easyButtonOffset = new Vector2(-16f, -16f);
 
 	[Header("Layout")]
 	public int columns = 3;
@@ -93,6 +99,10 @@ public class CarSelectUI : MonoBehaviour
 
 	int selected = -1;
 	bool confirmed;
+	Button easyButton;
+	TMP_Text easyLabel;
+	bool easyMode;
+
 	Coroutine hideGoRoutine;
 
 	// =========================================================
@@ -435,6 +445,15 @@ public class CarSelectUI : MonoBehaviour
 		var arf = bigRT.gameObject.AddComponent<AspectRatioFitter>();
 		arf.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
 		arf.aspectRatio = (float)previewWidth / Mathf.Max(1, previewHeight);
+		easyButton = NewButton("EasyButton", area, "", easyOffColor);
+		var eaRT = (RectTransform)easyButton.transform;
+		eaRT.anchorMin = eaRT.anchorMax = new Vector2(1f, 1f);
+		eaRT.pivot = new Vector2(1f, 1f);
+		eaRT.sizeDelta = easyButtonSize;
+		eaRT.anchoredPosition = easyButtonOffset;
+		easyLabel = easyButton.GetComponentInChildren<TMP_Text>();
+		easyButton.onClick.AddListener(() => { easyMode = !easyMode; RefreshEasy(); });
+		RefreshEasy();
 
 		var bar = NewImage("BottomBar", right, barColor).rectTransform;
 		bar.anchorMin = new Vector2(0f, 0f);
@@ -476,6 +495,13 @@ public class CarSelectUI : MonoBehaviour
 		engineButton.onClick.AddListener(OnEngineClicked);
 	}
 
+	void RefreshEasy()
+	{
+		if (easyButton == null) return;
+		((Graphic)easyButton.targetGraphic).color = easyMode ? easyOnColor : easyOffColor;
+		if (easyLabel != null) easyLabel.text = easyMode ? "EASY Mode : ON" : "EASY Mode : OFF";
+	}
+
 	// =========================================================
 	// Selection
 	// =========================================================
@@ -501,7 +527,7 @@ public class CarSelectUI : MonoBehaviour
 			bigPreview.texture = tex;
 			bigPreview.color = tex != null ? Color.white : Color.clear;
 		}
-		if (nameText != null) nameText.text = has ? GetName(selected) : "เลือกรถ";
+		if (nameText != null) nameText.text = has ? GetName(selected) : "Select Car";
 		if (startButton != null) startButton.interactable = has;
 		if (engineButton != null) engineButton.interactable = has && HasEnginePreview(selected);
 	}
@@ -578,6 +604,7 @@ public class CarSelectUI : MonoBehaviour
 
 		var rot = Quaternion.Euler(0f, heading + prefab.modelYawOffset, 0f);
 		var car = Instantiate(prefab, pos, rot);
+		car.accelBoost = easyMode ? easyMultiplier : 1f;
 		car.startAtPathStart = !custom;
 		car.gameObject.tag = "Player";
 		car.path = path;
